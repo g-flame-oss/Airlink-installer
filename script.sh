@@ -13,6 +13,10 @@ panel() {
     cd panel
     sudo chown -R www-data:www-data /var/www/panel
     sudo chmod -R 755 /var/www/panel
+    npm install -g typescript
+    npm install --production
+    npm run migrate:dev
+    npm run build-ts
     echo -e "${Red}---------------------------------------------${White}"
     echo -e "panel install done!"
 }
@@ -23,6 +27,9 @@ daemon() {
     sudo chown -R www-data:www-data /etc/daemon
     sudo chmod -R 755 /etc/daemon
     cp example.env .env
+    apt install -y nodejs npm git
+    npm install -g typescript
+    npm install
     npm run build
     echo -e "${Red}---------------------------------------------${White}"
     echo -e "daemon install done!"
@@ -33,10 +40,7 @@ panel-depends() {
     echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" |  tee /etc/apt/sources.list.d/nodesource.list
     apt update
     apt install -y nodejs  npm git
-    npm install -g typescript
-    npm install --production
-    npm run migrate:dev
-    npm run build-ts
+    
 }
 daemon-depends() {
     curl -sSL https://get.docker.com/ | CHANNEL=stable bash
@@ -44,9 +48,7 @@ daemon-depends() {
     curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
     echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_16.x nodistro main" |  tee /etc/apt/sources.list.d/nodesource.list
     apt update
-    apt install -y nodejs npm git
-    npm install -g typescript
-    npm install
+    
 }
 dependencies() {
     panel-depends
