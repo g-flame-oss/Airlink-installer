@@ -228,20 +228,17 @@ install_panel() {
         echo -e "${RED}Service file not found at /tmp/Airlink-installer/systemd/airlink-panel.service${NC}"
         echo -e "${YELLOW}Creating a basic service file...${NC}"
         cat > /etc/systemd/system/airlink-panel.service << EOF
+## Service by g-flame https://github.com/g-flame-oss
 [Unit]
-Description=Airlink Panel Service
+Description=Airlink panel Starting Service
 After=network.target
 
 [Service]
-Type=simple
-User=www-data
+User=root
 WorkingDirectory=/var/www/panel
-ExecStart=/usr/local/bin/node /var/www/panel/dist/index.js
+ExecStart=/usr/bin/npm start
 Restart=on-failure
 RestartSec=10
-StandardOutput=syslog
-StandardError=syslog
-SyslogIdentifier=airlink-panel
 
 [Install]
 WantedBy=multi-user.target
@@ -322,20 +319,17 @@ install_daemon() {
         echo -e "${RED}Service file not found at /tmp/Airlink-installer/systemd/airlink-daemon.service${NC}"
         echo -e "${YELLOW}Creating a basic service file...${NC}"
         cat > /etc/systemd/system/airlink-daemon.service << EOF
+## Service by g-flame https://github.com/g-flame-oss
 [Unit]
-Description=Airlink Daemon Service
-After=network.target docker.service
+Description=Airlink daemon Starting Service
+After=network.target
 
 [Service]
-Type=simple
-User=www-data
+User=root
 WorkingDirectory=/etc/daemon
-ExecStart=/usr/local/bin/node /etc/daemon/dist/index.js
+ExecStart=/usr/bin/node /etc/daemon/
 Restart=on-failure
 RestartSec=10
-StandardOutput=syslog
-StandardError=syslog
-SyslogIdentifier=airlink-daemon
 
 [Install]
 WantedBy=multi-user.target
@@ -403,6 +397,7 @@ tip_panel() {
     echo -e "${YELLOW}----------------------------------------------------${WHITE}"
     echo -e "${YELLOW}|${RED}Your panel has been started visit localhost:3000  ${YELLOW}|${WHITE}"
     echo -e "${YELLOW}----------------------------------------------------${WHITE}"
+    
 }
 
 tip_daemon() {
@@ -410,6 +405,7 @@ tip_daemon() {
     echo -e "${YELLOW}-----------------------------------------------------${WHITE}"
     echo -e "${YELLOW}|${RED}Your daemon has been started visit localhost:3002  ${YELLOW}|${WHITE}"
     echo -e "${YELLOW}-----------------------------------------------------${WHITE}"
+    
 }
 
 tip_both() {
@@ -418,6 +414,7 @@ tip_both() {
     echo -e "${YELLOW}|${RED}Your panel has been started visit localhost:3000  ${YELLOW} |${WHITE}"
     echo -e "${YELLOW}|${RED}Your daemon has been started visit localhost:3002  ${YELLOW}|${WHITE}"
     echo -e "${YELLOW}-----------------------------------------------------${WHITE}"
+    
 }
 
 # Install both dependencies
@@ -508,7 +505,6 @@ show_menu() {
 }
 
 # Start the script
-echo ""
 # Run initial Node.js setup but don't show the menu yet
 clear
 show_menu
