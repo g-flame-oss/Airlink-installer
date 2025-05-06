@@ -1,0 +1,14 @@
+## Service by g-flame https://github.com/g-flame-oss
+[Unit]
+Description=Airlink daemon Starting Service
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/etc/daemon
+ExecStart=/usr/bin/node /etc/daemon/
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

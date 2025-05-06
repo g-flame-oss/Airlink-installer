@@ -256,6 +256,10 @@ install_panel() {
     npm install --production
     npm run migrate:dev
     npm run build-ts
+    mv /tmp/Airlink-installer/systemd/airlink-panel.service /etc/systemd/system/
+    sudo systemctl daemon-reload
+    sudo systemctl enable airlink-panel.service
+    sudo systemctl start airlink-panel.service
     echo -e "${GREEN}Panel installation completed successfully!${NC}"
 }
 
@@ -283,6 +287,10 @@ install_daemon() {
     
     npm install
     npm run build
+    mv /tmp/Airlink-installer/systemd/airlink-daemon.service /etc/systemd/system/
+    sudo systemctl daemon-reload
+    sudo systemctl enable airlink-daemon.service
+    sudo systemctl start airlink-daemon.service
     echo -e "${GREEN}Daemon installation completed successfully!${NC}"
 }
 
@@ -330,6 +338,28 @@ remove_dependencies() {
     apt-get autoclean
     apt-get update
     echo -e "${GREEN}Dependencies removed successfully!${NC}"
+}
+
+tip-panel() {
+    clear
+    echo -e "${Yellow}----------------------------------------------------${White}"
+    echo -e "${Yellow}|${Red}Your panel has been started visit localhost:3000  ${Yellow}|${White}"
+    echo -e "${Yellow}----------------------------------------------------${White}"
+}
+
+tip-daemon() {
+    clear
+    echo -e "${Yellow}-----------------------------------------------------${White}"
+    echo -e "${Yellow}|${Red}Your daemon has been started visit localhost:3002  ${Yellow}|${White}"
+    echo -e "${Yellow}-----------------------------------------------------${White}"
+}
+
+tip-both() {
+    clear
+    echo -e "${Yellow}-----------------------------------------------------${White}"
+    echo -e "${Yellow}|${Red}Your panel has been started visit localhost:3000  ${Yellow} |${White}"
+    echo -e "${Yellow}|${Red}Your daemon has been started visit localhost:3002  ${Yellow}|${White}"
+    echo -e "${Yellow}-----------------------------------------------------${White}"
 }
 
 # Install both dependencies

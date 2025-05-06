@@ -1,0 +1,14 @@
+## Service by g-flame https://github.com/g-flame-oss
+[Unit]
+Description=Airlink panel Starting Service
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/var/www/panel
+ExecStart=/usr/bin/npm start
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
