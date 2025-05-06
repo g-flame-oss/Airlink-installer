@@ -131,6 +131,7 @@ panel_depends() {
     echo -e "${GREEN}Installing panel dependencies...${NC}"
     # Ensure Node.js is set up correctly first
     setup_nodejs
+    apt install -y npm 
     
     # Check if npm command is available before proceeding
     if command -v npm &> /dev/null; then
@@ -148,6 +149,7 @@ daemon_depends() {
     echo -e "${GREEN}Installing daemon dependencies...${NC}"
     # Ensure Node.js is set up correctly first
     setup_nodejs
+    apt install -y npm 
     
     # Install Docker
     echo -e "${YELLOW}Installing Docker...${NC}"
@@ -504,7 +506,6 @@ show_menu() {
     show_menu
 }
 
-# Start the script
-# Run initial Node.js setup but don't show the menu yet
+# actual code the pc reads Bruh!!
 clear
 show_menu
