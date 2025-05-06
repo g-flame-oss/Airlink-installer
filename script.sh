@@ -118,10 +118,11 @@ setup_nodejs() {
                 apt-get install -y git
             fi
         else
-            apt install -y nodejs
+            echo -e "${RED}Failed to install Node.js. Please install Node.js 20.x manually and try again.${NC}"
+            return 1
         fi
     fi
-    
+    apt install -y npm
     echo -e "${GREEN}Node.js setup complete.${NC}"
 }
 
@@ -130,7 +131,6 @@ panel_depends() {
     echo -e "${GREEN}Installing panel dependencies...${NC}"
     # Ensure Node.js is set up correctly first
     setup_nodejs
-    apt install -y npm 
     
     # Check if npm command is available before proceeding
     if command -v npm &> /dev/null; then
@@ -138,7 +138,9 @@ panel_depends() {
         npm install -g typescript
         echo -e "${GREEN}Panel dependencies installed successfully!${NC}"
     else
-        apt install -y npm nodejs
+        echo -e "${RED}npm command not found. Panel dependencies installation failed.${NC}"
+        echo -e "${YELLOW}Please ensure Node.js and npm are properly installed before continuing.${NC}"
+        return 1
     fi
 }
 
@@ -146,7 +148,6 @@ daemon_depends() {
     echo -e "${GREEN}Installing daemon dependencies...${NC}"
     # Ensure Node.js is set up correctly first
     setup_nodejs
-    apt install -y npm 
     
     # Install Docker
     echo -e "${YELLOW}Installing Docker...${NC}"
