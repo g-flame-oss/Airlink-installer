@@ -16,43 +16,82 @@ check_root() {
     fi
 }
 
+# Function to compare version strings
+version_gt() { 
+    test "$(printf '%s\n' "$@" | sort -V | head -n 1)" != "$1"
+}
+
+# Node.js installation/verification function
+setup_nodejs() {
+    echo -e "${YELLOW}Checking Node.js installation...${NC}"
+    
+    # Check if Node.js is installed
+    if command -v node &> /dev/null; then
+        # Get current version
+        CURRENT_VERSION=$(node -v | cut -d 'v' -f 2)
+        echo -e "Current Node.js version: ${GREEN}v${CURRENT_VERSION}${NC}"
+        
+        # Get the latest available LTS version from NodeSource (20.x)
+        LATEST_VERSION="20"
+        MAJOR_VERSION=$(echo $CURRENT_VERSION | cut -d '.' -f 1)
+        
+        # Check if current version is already Node.js 20.x
+        if [ "$MAJOR_VERSION" -eq "$LATEST_VERSION" ]; then
+            echo -e "${GREEN}Node.js 20.x is already installed. No action needed.${NC}"
+        else
+            echo -e "${YELLOW}Upgrading Node.js from v${CURRENT_VERSION} to latest 20.x version...${NC}"
+            
+            # Remove existing Node.js installation
+            echo -e "${YELLOW}Removing existing Node.js installation...${NC}"
+            apt-get remove -y nodejs npm
+            rm -f /etc/apt/sources.list.d/nodesource.list
+            rm -f /etc/apt/keyrings/nodesource.gpg
+            apt-get autoremove -y
+            
+            # Install Node.js 20.x
+            echo -e "${YELLOW}Installing Node.js 20.x...${NC}"
+            mkdir -p /etc/apt/keyrings
+            curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
+            echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list
+            apt update
+            apt install -y nodejs npm git
+            
+            # Verify new installation
+            NEW_VERSION=$(node -v | cut -d 'v' -f 2)
+            echo -e "${GREEN}Successfully upgraded Node.js to v${NEW_VERSION}${NC}"
+        fi
+    else
+        echo -e "${YELLOW}Node.js is not installed. Installing Node.js 20.x...${NC}"
+        
+        # Install Node.js 20.x
+        mkdir -p /etc/apt/keyrings
+        curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
+        echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list
+        apt update
+        apt install -y nodejs npm git
+        
+        # Verify installation
+        NEW_VERSION=$(node -v | cut -d 'v' -f 2)
+        echo -e "${GREEN}Successfully installed Node.js v${NEW_VERSION}${NC}"
+    fi
+    
+    echo -e "${GREEN}Node.js setup complete.${NC}"
+}
+
 # Installation functions
 panel_depends() {
     echo -e "${GREEN}Installing panel dependencies...${NC}"
-    if command -v node &> /dev/null; then
-        echo -e "${YELLOW}Removing existing Node.js installation to avoid conflicts...${NC}"
-        apt-get remove -y nodejs npm
-        rm -f /etc/apt/sources.list.d/nodesource.list
-        rm -f /etc/apt/keyrings/nodesource.gpg
-        apt-get autoremove -y
-    fi
-
-    mkdir -p /etc/apt/keyrings
-    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
-    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list
-    apt update
-    apt install -y nodejs npm git
+    # Ensure Node.js is set up correctly first
+    setup_nodejs
     npm install -g typescript
     echo -e "${GREEN}Panel dependencies installed successfully!${NC}"
 }
 
 daemon_depends() {
     echo -e "${GREEN}Installing daemon dependencies...${NC}"
+    # Ensure Node.js is set up correctly first
+    setup_nodejs
     curl -sSL https://get.docker.com/ | CHANNEL=stable bash
-    if command -v node &> /dev/null; then
-        echo -e "${YELLOW}Removing existing Node.js installation to avoid conflicts...${NC}"
-        apt-get remove -y nodejs npm
-        rm -f /etc/apt/sources.list.d/nodesource.list
-        rm -f /etc/apt/keyrings/nodesource.gpg
-        apt-get autoremove -y
-    fi
-    
-    # Install Node.js 20.x for panel
-    mkdir -p /etc/apt/keyrings
-    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
-    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list
-    apt update
-    apt install -y nodejs npm git
     npm install -g typescript
     echo -e "${GREEN}Daemon dependencies installed successfully!${NC}"
 }
@@ -167,26 +206,26 @@ remove_dependencies() {
     echo -e "${GREEN}Dependencies removed successfully!${NC}"
 }
 
-tip-panel() {
+tip_panel() {
     clear
-    echo -e "${Yellow}----------------------------------------------------${White}"
-    echo -e "${Yellow}|${Red}Your panel has been started visit localhost:3000  ${Yellow}|${White}"
-    echo -e "${Yellow}----------------------------------------------------${White}"
+    echo -e "${YELLOW}----------------------------------------------------${WHITE}"
+    echo -e "${YELLOW}|${RED}Your panel has been started visit localhost:3000  ${YELLOW}|${WHITE}"
+    echo -e "${YELLOW}----------------------------------------------------${WHITE}"
 }
 
-tip-daemon() {
+tip_daemon() {
     clear
-    echo -e "${Yellow}-----------------------------------------------------${White}"
-    echo -e "${Yellow}|${Red}Your daemon has been started visit localhost:3002  ${Yellow}|${White}"
-    echo -e "${Yellow}-----------------------------------------------------${White}"
+    echo -e "${YELLOW}-----------------------------------------------------${WHITE}"
+    echo -e "${YELLOW}|${RED}Your daemon has been started visit localhost:3002  ${YELLOW}|${WHITE}"
+    echo -e "${YELLOW}-----------------------------------------------------${WHITE}"
 }
 
-tip-both() {
+tip_both() {
     clear
-    echo -e "${Yellow}-----------------------------------------------------${White}"
-    echo -e "${Yellow}|${Red}Your panel has been started visit localhost:3000  ${Yellow} |${White}"
-    echo -e "${Yellow}|${Red}Your daemon has been started visit localhost:3002  ${Yellow}|${White}"
-    echo -e "${Yellow}-----------------------------------------------------${White}"
+    echo -e "${YELLOW}-----------------------------------------------------${WHITE}"
+    echo -e "${YELLOW}|${RED}Your panel has been started visit localhost:3000  ${YELLOW} |${WHITE}"
+    echo -e "${YELLOW}|${RED}Your daemon has been started visit localhost:3002  ${YELLOW}|${WHITE}"
+    echo -e "${YELLOW}-----------------------------------------------------${WHITE}"
 }
 
 # Install both dependencies
@@ -197,17 +236,17 @@ install_dependencies() {
 
 # Display ASCII art logo
 display_logo() {
-echo -e " ${Blue}----${Green}INSTALLER HOME${Yellow}--------${White}"
-echo -e " ${Blue}    ___  _                _                ${White}"
-echo -e " ${Blue}   / _ \(_)     _(_)     | |               ${White}"
-echo -e " ${Blue}  / /_\ \ \_ _ | |_ _ __ | | __            ${White}"
-echo -e " ${Blue}  |  _  | | '__| | | '_ \| |/ /            ${White}"
-echo -e " ${Blue}  | | | | | |  | | | | | |   <             ${White}"
-echo -e " ${Blue}  \_| |_/_|_|  |_|_|_| |_|_|\_\            ${White}"
-echo -e " ${Blue}                                           ${White}"
-echo -e " ${Blue}airlink${White} asm software installer!            "
-echo -e " panel and daemon by ${Blue}airlinklabs${White} © ${White}"
-echo -e " install script by ${Green}G-flame!${White}" 
+echo -e " ${BLUE}----${GREEN}INSTALLER HOME${YELLOW}--------${WHITE}"
+echo -e " ${BLUE}    ___  _                _                ${WHITE}"
+echo -e " ${BLUE}   / _ \(_)     _(_)     | |               ${WHITE}"
+echo -e " ${BLUE}  / /_\ \ \_ _ | |_ _ __ | | __            ${WHITE}"
+echo -e " ${BLUE}  |  _  | | '__| | | '_ \| |/ /            ${WHITE}"
+echo -e " ${BLUE}  | | | | | |  | | | | | |   <             ${WHITE}"
+echo -e " ${BLUE}  \_| |_/_|_|  |_|_|_| |_|_|\_\            ${WHITE}"
+echo -e " ${BLUE}                                           ${WHITE}"
+echo -e " ${BLUE}airlink${WHITE} asm software installer!            "
+echo -e " panel and daemon by ${BLUE}airlinklabs${WHITE} © ${WHITE}"
+echo -e " install script by ${GREEN}G-flame!${WHITE}" 
 }
 
 # Main UI function
@@ -231,17 +270,17 @@ show_menu() {
             install_dependencies
             install_panel
             install_daemon
-            tip-both
+            tip_both
             ;;
         2)
             panel_depends
             install_panel
-            tip-panel
+            tip_panel
             ;;
         3)
             daemon_depends
             install_daemon
-            tip-daemon
+            tip_daemon
             ;;
         4)
             install_dependencies
