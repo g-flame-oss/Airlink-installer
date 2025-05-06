@@ -118,8 +118,7 @@ setup_nodejs() {
                 apt-get install -y git
             fi
         else
-            echo -e "${RED}Failed to install Node.js. Please install Node.js 20.x manually and try again.${NC}"
-            return 1
+            apt install -y nodejs
         fi
     fi
     
@@ -139,9 +138,7 @@ panel_depends() {
         npm install -g typescript
         echo -e "${GREEN}Panel dependencies installed successfully!${NC}"
     else
-        echo -e "${RED}npm command not found. Panel dependencies installation failed.${NC}"
-        echo -e "${YELLOW}Please ensure Node.js and npm are properly installed before continuing.${NC}"
-        return 1
+        apt install -y npm nodejs
     fi
 }
 
