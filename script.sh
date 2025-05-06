@@ -25,54 +25,102 @@ version_gt() {
 setup_nodejs() {
     echo -e "${YELLOW}Checking Node.js installation...${NC}"
     
-    # Check if Node.js is installed
+    # Clean up any existing Node.js installations that might cause conflicts
+    echo -e "${YELLOW}Cleaning up any existing Node.js installations...${NC}"
+    apt-get remove -y nodejs nodejs-doc node-gyp npm
+    apt-get autoremove -y
+    
+    # Clean up any existing repository configurations
+    rm -f /etc/apt/sources.list.d/nodesource.list
+    rm -f /etc/apt/keyrings/nodesource.gpg
+    
+    # Install NVM (Node Version Manager) which is more reliable for Node.js installation
+    echo -e "${YELLOW}Installing Node.js 20.x using NVM method...${NC}"
+    
+    # Create temp directory for NVM installation
+    mkdir -p ~/.nvm
+    
+    # Install NVM
+    export NVM_DIR="$HOME/.nvm"
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+    
+    # Load NVM
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+    
+    # Make NVM available in the current session
+    export NVM_DIR="$HOME/.nvm"
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+    
+    # Install Node.js 20.x
+    nvm install 20
+    nvm use 20
+    nvm alias default 20
+    
+    # Create global symlinks for system-wide access
+    n=$(which node)
+    n=${n%/bin/node}
+    chmod -R 755 $n/bin/*
+    sudo cp -r $n/{bin,lib,share} /usr/local/
+    
+    # Verify installation
     if command -v node &> /dev/null; then
-        # Get current version
-        CURRENT_VERSION=$(node -v | cut -d 'v' -f 2)
-        echo -e "Current Node.js version: ${GREEN}v${CURRENT_VERSION}${NC}"
+        NODE_VERSION=$(node -v)
+        echo -e "${GREEN}Successfully installed Node.js ${NODE_VERSION}${NC}"
         
-        # Get the latest available LTS version from NodeSource (20.x)
-        LATEST_VERSION="20"
-        MAJOR_VERSION=$(echo $CURRENT_VERSION | cut -d '.' -f 1)
+        # Install npm if it's not installed
+        if ! command -v npm &> /dev/null; then
+            echo -e "${YELLOW}Installing npm...${NC}"
+            apt-get update
+            curl -L https://npmjs.org/install.sh | sh
+        fi
         
-        # Check if current version is already Node.js 20.x
-        if [ "$MAJOR_VERSION" -eq "$LATEST_VERSION" ]; then
-            echo -e "${GREEN}Node.js 20.x is already installed. No action needed.${NC}"
-        else
-            echo -e "${YELLOW}Upgrading Node.js from v${CURRENT_VERSION} to latest 20.x version...${NC}"
-            
-            # Remove existing Node.js installation
-            echo -e "${YELLOW}Removing existing Node.js installation...${NC}"
-            apt-get remove -y nodejs npm
-            rm -f /etc/apt/sources.list.d/nodesource.list
-            rm -f /etc/apt/keyrings/nodesource.gpg
-            apt-get autoremove -y
-            
-            # Install Node.js 20.x
-            echo -e "${YELLOW}Installing Node.js 20.x...${NC}"
-            mkdir -p /etc/apt/keyrings
-            curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
-            echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list
-            apt update
-            apt install -y nodejs npm git
-            
-            # Verify new installation
-            NEW_VERSION=$(node -v | cut -d 'v' -f 2)
-            echo -e "${GREEN}Successfully upgraded Node.js to v${NEW_VERSION}${NC}"
+        # Install git if it's not installed
+        if ! command -v git &> /dev/null; then
+            echo -e "${YELLOW}Installing git...${NC}"
+            apt-get install -y git
         fi
     else
-        echo -e "${YELLOW}Node.js is not installed. Installing Node.js 20.x...${NC}"
+        echo -e "${RED}Failed to install Node.js using NVM. Trying alternative method...${NC}"
         
-        # Install Node.js 20.x
-        mkdir -p /etc/apt/keyrings
-        curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
-        echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list
-        apt update
-        apt install -y nodejs npm git
+        # Try direct binary installation as a fallback
+        echo -e "${YELLOW}Installing Node.js from direct binary...${NC}"
+        cd /tmp
+        
+        # Get architecture
+        ARCH=$(uname -m)
+        
+        if [ "$ARCH" = "x86_64" ]; then
+            NODE_URL="https://nodejs.org/dist/v20.12.1/node-v20.12.1-linux-x64.tar.xz"
+        elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+            NODE_URL="https://nodejs.org/dist/v20.12.1/node-v20.12.1-linux-arm64.tar.xz"
+        else
+            echo -e "${RED}Unsupported architecture: $ARCH${NC}"
+            echo -e "${RED}Please install Node.js 20.x manually and try again.${NC}"
+            return 1
+        fi
+        
+        curl -O $NODE_URL
+        tar -xf node-v20.12.1-linux-*.tar.xz
+        cd node-v20.12.1-linux-*/
+        cp -R bin/* /usr/local/bin/
+        cp -R lib/* /usr/local/lib/
+        cp -R include/* /usr/local/include/
+        cp -R share/* /usr/local/share/
         
         # Verify installation
-        NEW_VERSION=$(node -v | cut -d 'v' -f 2)
-        echo -e "${GREEN}Successfully installed Node.js v${NEW_VERSION}${NC}"
+        if command -v node &> /dev/null; then
+            NODE_VERSION=$(node -v)
+            echo -e "${GREEN}Successfully installed Node.js ${NODE_VERSION} using direct binary method${NC}"
+            
+            # Install git if it's not installed
+            if ! command -v git &> /dev/null; then
+                echo -e "${YELLOW}Installing git...${NC}"
+                apt-get install -y git
+            fi
+        else
+            echo -e "${RED}Failed to install Node.js. Please install Node.js 20.x manually and try again.${NC}"
+            return 1
+        fi
     fi
     
     echo -e "${GREEN}Node.js setup complete.${NC}"
@@ -83,21 +131,51 @@ panel_depends() {
     echo -e "${GREEN}Installing panel dependencies...${NC}"
     # Ensure Node.js is set up correctly first
     setup_nodejs
-    npm install -g typescript
-    echo -e "${GREEN}Panel dependencies installed successfully!${NC}"
+    
+    # Check if npm command is available before proceeding
+    if command -v npm &> /dev/null; then
+        echo -e "${GREEN}Installing TypeScript globally...${NC}"
+        npm install -g typescript
+        echo -e "${GREEN}Panel dependencies installed successfully!${NC}"
+    else
+        echo -e "${RED}npm command not found. Panel dependencies installation failed.${NC}"
+        echo -e "${YELLOW}Please ensure Node.js and npm are properly installed before continuing.${NC}"
+        return 1
+    fi
 }
 
 daemon_depends() {
     echo -e "${GREEN}Installing daemon dependencies...${NC}"
     # Ensure Node.js is set up correctly first
     setup_nodejs
+    
+    # Install Docker
+    echo -e "${YELLOW}Installing Docker...${NC}"
     curl -sSL https://get.docker.com/ | CHANNEL=stable bash
-    npm install -g typescript
-    echo -e "${GREEN}Daemon dependencies installed successfully!${NC}"
+    
+    # Check if npm command is available before proceeding
+    if command -v npm &> /dev/null; then
+        echo -e "${GREEN}Installing TypeScript globally...${NC}"
+        npm install -g typescript
+        echo -e "${GREEN}Daemon dependencies installed successfully!${NC}"
+    else
+        echo -e "${RED}npm command not found. Daemon dependencies installation incomplete.${NC}"
+        echo -e "${YELLOW}Docker was installed, but TypeScript installation failed.${NC}"
+        echo -e "${YELLOW}Please ensure Node.js and npm are properly installed before continuing.${NC}"
+        return 1
+    fi
 }
 
 install_panel() {
     echo -e "${GREEN}Installing panel...${NC}"
+    
+    # Verify Node.js and npm are properly installed before continuing
+    if ! command -v node &> /dev/null || ! command -v npm &> /dev/null; then
+        echo -e "${RED}Node.js or npm is not installed properly. Cannot continue with panel installation.${NC}"
+        echo -e "${YELLOW}Please ensure Node.js and npm are correctly installed before proceeding.${NC}"
+        return 1
+    fi
+    
     mkdir -p /var/www
     cd /var/www/ || { echo -e "${RED}Failed to change directory to /var/www/${NC}"; return 1; }
     
@@ -107,7 +185,12 @@ install_panel() {
         rm -rf /var/www/panel
     fi
     
-    git clone https://github.com/AirlinkLabs/panel.git
+    # Clone repository with error handling
+    if ! git clone https://github.com/AirlinkLabs/panel.git; then
+        echo -e "${RED}Failed to clone panel repository. Please check your internet connection.${NC}"
+        return 1
+    fi
+    
     cd panel || { echo -e "${RED}Failed to change directory to panel${NC}"; return 1; }
     sudo chown -R www-data:www-data /var/www/panel
     sudo chmod -R 755 /var/www/panel
@@ -119,18 +202,81 @@ install_panel() {
         return 1
     fi
     
-    npm install --production
-    npm run migrate:dev
-    npm run build-ts
-    mv /tmp/Airlink-installer/systemd/airlink-panel.service /etc/systemd/system/
+    # Install dependencies with error handling
+    echo -e "${YELLOW}Installing panel dependencies...${NC}"
+    if ! npm install --production; then
+        echo -e "${RED}Failed to install panel dependencies. Please check npm and Node.js setup.${NC}"
+        return 1
+    fi
+    
+    echo -e "${YELLOW}Running database migrations...${NC}"
+    if ! npm run migrate:dev; then
+        echo -e "${RED}Failed to run database migrations.${NC}"
+        return 1
+    fi
+    
+    echo -e "${YELLOW}Building TypeScript files...${NC}"
+    if ! npm run build-ts; then
+        echo -e "${RED}Failed to build TypeScript files.${NC}"
+        return 1
+    fi
+    
+    # Check if service file exists before trying to move it
+    if [ -f "/tmp/Airlink-installer/systemd/airlink-panel.service" ]; then
+        mv /tmp/Airlink-installer/systemd/airlink-panel.service /etc/systemd/system/
+    else
+        echo -e "${RED}Service file not found at /tmp/Airlink-installer/systemd/airlink-panel.service${NC}"
+        echo -e "${YELLOW}Creating a basic service file...${NC}"
+        cat > /etc/systemd/system/airlink-panel.service << EOF
+[Unit]
+Description=Airlink Panel Service
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/panel
+ExecStart=/usr/local/bin/node /var/www/panel/dist/index.js
+Restart=on-failure
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=airlink-panel
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    fi
+    
     sudo systemctl daemon-reload
     sudo systemctl enable airlink-panel.service
-    sudo systemctl start airlink-panel.service
+    if ! sudo systemctl start airlink-panel.service; then
+        echo -e "${RED}Failed to start airlink-panel service. Please check the logs with 'journalctl -u airlink-panel.service'${NC}"
+        return 1
+    fi
+    
     echo -e "${GREEN}Panel installation completed successfully!${NC}"
 }
 
 install_daemon() {
     echo -e "${GREEN}Installing daemon...${NC}"
+    
+    # Verify Node.js and npm are properly installed before continuing
+    if ! command -v node &> /dev/null || ! command -v npm &> /dev/null; then
+        echo -e "${RED}Node.js or npm is not installed properly. Cannot continue with daemon installation.${NC}"
+        echo -e "${YELLOW}Please ensure Node.js and npm are correctly installed before proceeding.${NC}"
+        return 1
+    fi
+    
+    # Verify Docker is installed
+    if ! command -v docker &> /dev/null; then
+        echo -e "${YELLOW}Docker not found. Attempting to install Docker...${NC}"
+        if ! curl -sSL https://get.docker.com/ | CHANNEL=stable bash; then
+            echo -e "${RED}Failed to install Docker. Please install Docker manually and try again.${NC}"
+            return 1
+        fi
+    fi
+    
     cd /etc/ || { echo -e "${RED}Failed to change directory to /etc/${NC}"; return 1; }
     
     # Check if daemon directory already exists
@@ -139,7 +285,12 @@ install_daemon() {
         rm -rf /etc/daemon
     fi
     
-    git clone https://github.com/AirlinkLabs/daemon.git
+    # Clone repository with error handling
+    if ! git clone https://github.com/AirlinkLabs/daemon.git; then
+        echo -e "${RED}Failed to clone daemon repository. Please check your internet connection.${NC}"
+        return 1
+    fi
+    
     cd daemon || { echo -e "${RED}Failed to change directory to daemon${NC}"; return 1; }
     sudo chown -R www-data:www-data /etc/daemon
     sudo chmod -R 755 /etc/daemon
@@ -151,12 +302,53 @@ install_daemon() {
         return 1
     fi
     
-    npm install
-    npm run build
-    mv /tmp/Airlink-installer/systemd/airlink-daemon.service /etc/systemd/system/
+    # Install dependencies with error handling
+    echo -e "${YELLOW}Installing daemon dependencies...${NC}"
+    if ! npm install; then
+        echo -e "${RED}Failed to install daemon dependencies. Please check npm and Node.js setup.${NC}"
+        return 1
+    fi
+    
+    echo -e "${YELLOW}Building daemon...${NC}"
+    if ! npm run build; then
+        echo -e "${RED}Failed to build daemon.${NC}"
+        return 1
+    fi
+    
+    # Check if service file exists before trying to move it
+    if [ -f "/tmp/Airlink-installer/systemd/airlink-daemon.service" ]; then
+        mv /tmp/Airlink-installer/systemd/airlink-daemon.service /etc/systemd/system/
+    else
+        echo -e "${RED}Service file not found at /tmp/Airlink-installer/systemd/airlink-daemon.service${NC}"
+        echo -e "${YELLOW}Creating a basic service file...${NC}"
+        cat > /etc/systemd/system/airlink-daemon.service << EOF
+[Unit]
+Description=Airlink Daemon Service
+After=network.target docker.service
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/etc/daemon
+ExecStart=/usr/local/bin/node /etc/daemon/dist/index.js
+Restart=on-failure
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=airlink-daemon
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    fi
+    
     sudo systemctl daemon-reload
     sudo systemctl enable airlink-daemon.service
-    sudo systemctl start airlink-daemon.service
+    if ! sudo systemctl start airlink-daemon.service; then
+        echo -e "${RED}Failed to start airlink-daemon service. Please check the logs with 'journalctl -u airlink-daemon.service'${NC}"
+        return 1
+    fi
+    
     echo -e "${GREEN}Daemon installation completed successfully!${NC}"
 }
 
@@ -316,5 +508,7 @@ show_menu() {
 }
 
 # Start the script
+echo ""
+# Run initial Node.js setup but don't show the menu yet
 clear
 show_menu
