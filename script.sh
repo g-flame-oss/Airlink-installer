@@ -385,7 +385,7 @@ remove_dependencies() {
         rm -f /etc/apt/sources.list.d/nodesource.list
         rm -f /etc/apt/keyrings/nodesource.gpg
     fi
-    
+    apt purge -y npm nodejs 
     apt-get autoremove -y
     apt-get autoclean
     apt-get update
@@ -450,7 +450,8 @@ show_menu() {
     echo -e "6) ${RED}Remove ${BLUE}panel${NC} only!"
     echo -e "7) ${RED}Remove ${BLUE}daemon${NC} only!"
     echo -e "8) ${RED}Remove ${BLUE}dependencies${NC} only!"
-    echo -e "9) ${RED}Exit${NC} installer!"
+    echo -e "9) ${RED}Remove everything!{NC} "
+    echo -e "10) ${RED}Exit${NC} installer!"
     
     read -p "What do you want to do? [1-9]: " choice
     
@@ -488,6 +489,12 @@ show_menu() {
             remove_dependencies
             ;;
         9)
+            remove_panel
+            remove_daemon
+            remove_dependencies
+            ;;
+
+        10)
             echo -e "${GREEN}Thank you for using the installer. Goodbye!${NC}"
             exit 0
             ;;
