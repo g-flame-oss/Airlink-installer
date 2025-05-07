@@ -25,11 +25,6 @@ version_gt() {
 setup_nodejs() {
     echo -e "${YELLOW}Checking Node.js installation...${NC}"
     
-    # Clean up any existing Node.js installations that might cause conflicts
-    echo -e "${YELLOW}Cleaning up any existing Node.js installations...${NC}"
-    apt-get remove -y nodejs nodejs-doc node-gyp npm
-    apt-get autoremove -y
-    
     # Clean up any existing repository configurations
     rm -f /etc/apt/sources.list.d/nodesource.list
     rm -f /etc/apt/keyrings/nodesource.gpg
