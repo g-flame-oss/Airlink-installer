@@ -23,8 +23,8 @@ cd /tmp && rm -rf Airlink-installer && git clone https://github.com/g-flame-oss/
 
 ## Credits
 
-- Original Airlink Project: [AirlinkLabs](https://github.com/airlinklabs)
-- [G-flame](https://github.com/g-flame), achul, privt, matt
+- Original Airlink Project: [Achul, Privt](https://github.com/airlinklabs)
+- [G-flame](https://github.com/g-flame),
 
 ## License
 
