@@ -11,7 +11,7 @@ Airlink Installer simplifies setting up the Airlink panel and daemon on modern s
 ## Installation
 
 ```bash
-cd /tmp && rm -rf Airlink-installer && git clone https://github.com/g-flame-oss/Airlink-installer.git && sudo bash /tmp/Airlink-installer/script.sh
+curl -s https://raw.githubusercontent.com/g-flame-oss/Airlink-installer/refs/heads/main/script.sh -o airlink-installer.sh && chmod +x airlink-installer.sh && sudo ./airlink-installer.sh
 ```
 
 ## Requirements
