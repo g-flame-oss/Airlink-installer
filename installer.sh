@@ -1,2 +1,0 @@
-#!/bin/bash
-curl -s https://raw.githubusercontent.com/g-flame-oss/Airlink-installer/refs/heads/main/script.sh -o airlink-installer.sh && chmod +x airlink-installer.sh && sudo ./airlink-installer.sh && rm airlink-installer.sh installer.sh 

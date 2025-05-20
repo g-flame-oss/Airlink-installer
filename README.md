@@ -1,33 +1,62 @@
 # AIRLINK INSTALLER
-A modern installer for the Airlink project, optimized for Debian-based systems.
 
-![Maintained](https://img.shields.io/badge/Maintained-yes-green.svg)
-![Debian Compatible](https://img.shields.io/badge/Debian-Compatible-blue)
+![Airlink Installer](banner.png)
 
-## About
+[![Maintained](https://img.shields.io/badge/Maintained-yes-green.svg)](https://github.com/g-flame-oss/Airlink-installer)
+[![Debian Compatible](https://img.shields.io/badge/Debian-Compatible-blue)](https://github.com/g-flame-oss/Airlink-installer)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Version](https://img.shields.io/github/v/release/g-flame-oss/Airlink-installer?include_prereleases)](https://github.com/g-flame-oss/Airlink-installer/releases)
 
-Airlink Installer simplifies setting up the Airlink panel and daemon on modern systems, despite the original project being deprecated.
+## Introduction
 
-## Installation
+Airlink Installer provides an efficient deployment solution for the Airlink panel and daemon on modern Debian-based systems. This tool maintains compatibility with the original Airlink project while offering improved reliability and streamlined installation processes.
+
+## System Requirements
+
+- Debian-based Linux distribution
+- Administrator (root/sudo) privileges
+- Active network connection
+
+## Quick Installation
 
 ```bash
-curl -s https://raw.githubusercontent.com/g-flame-oss/Airlink-installer/refs/heads/main/script.sh -o airlink-installer.sh && chmod +x airlink-installer.sh && sudo ./airlink-installer.sh
+bash <(curl -s https://raw.githubusercontent.com/g-flame-oss/Airlink-installer/refs/heads/main/installer.sh)
 ```
 
-## Requirements
+## Key Features
 
-- Debian-based OS
-- Root/sudo access
-- Git
-- Internet connection
+- Automated dependency management
+- Configuration validation
+- Performance optimization
+- Secure installation protocols
+- Comprehensive logging
 
-## Credits
+## Advanced Configuration
+
+The installer supports various configuration parameters:
+
+```bash
+bash <(curl -s https://raw.githubusercontent.com/g-flame-oss/Airlink-installer/refs/heads/main/installer.sh) --port 8080 --db-name airlink_db
+```
+
+For a complete list of available parameters, use the `--help` flag.
+
+## Technical Support
+
+For assistance with installation issues, please:
+
+2. Check [known issues](https://github.com/g-flame-oss/Airlink-installer/issues)
+3. Submit a detailed bug report if necessary
+
+## Contributors
 
 - Original Airlink Project: [Achul, Privt](https://github.com/airlinklabs)
-- [G-flame](https://github.com/g-flame),
+- Installer Maintenance: [G-flame](https://github.com/g-flame)
 
-## License
+## Legal Information
 
-See [LICENSE](LICENSE) file for details
+This project is licensed under the [MIT License](LICENSE).
 
 ---
+
+**Note:** This installer is independently maintained and not officially affiliated with the original Airlink project developers.
