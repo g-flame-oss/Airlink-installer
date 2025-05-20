@@ -31,15 +31,6 @@ bash <(curl -s https://raw.githubusercontent.com/g-flame-oss/Airlink-installer/r
 - Secure installation protocols
 - Comprehensive logging
 
-## Advanced Configuration
-
-The installer supports various configuration parameters:
-
-```bash
-bash <(curl -s https://raw.githubusercontent.com/g-flame-oss/Airlink-installer/refs/heads/main/installer.sh) --port 8080 --db-name airlink_db
-```
-
-For a complete list of available parameters, use the `--help` flag.
 
 ## Technical Support
 
