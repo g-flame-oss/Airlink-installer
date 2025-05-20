@@ -1,5 +1,32 @@
 #!/bin/bash
 
+##########################################################################################
+#       Installer by G-flame @ https://github.com/g-flame                                #
+#       Panel and Daemon by Airlinklabs @ https://github.com/airlinklabs                 #
+#                                                                                        #
+#       MIT License                                                                      #
+#                                                                                        #
+#       Copyright (c) 2025 G-flame-OSS                                                   #
+#                                                                                        #
+#       Permission is hereby granted, free of charge, to any person obtaining a copy     #
+#       of this software and associated documentation files (the "Software"), to deal    #
+#       in the Software without restriction, including without limitation the rights     #
+#       to use, copy, modify, merge, publish, distribute, sublicense, and/or sell        #
+#       copies of the Software, and to permit persons to whom the Software is            #
+#       furnished to do so, subject to the following conditions:                         #
+#                                                                                        #
+#       The above copyright notice and this permission notice shall be included in all   #
+#       copies or substantial portions of the Software.                                  #
+#                                                                                        #
+#       THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR       #
+#       IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,         #
+#       FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE      #
+#       AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER           #
+#       LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,    #
+#       OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE    #
+#       SOFTWARE.                                                                        #
+##########################################################################################
+
 # Define colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -19,6 +46,18 @@ check_root() {
 # Function to compare version strings
 version_gt() { 
     test "$(printf '%s\n' "$@" | sort -V | head -n 1)" != "$1"
+}
+
+# Check sources before continuing..
+source_check() {
+    echo -e "${YELLOW}Checking Sources...${NC}"
+    # Using git checking the repo - redirect all output to /dev/null
+    if git ls-remote https://github.com/airlinklabs/panel.git -q > /dev/null 2>&1; then
+        show_menu
+    else
+        echo -e "${RED}Repository doesn't exist or cannot be reached using fallback repos${NC}"
+        f_show_menu
+    fi
 }
 
 # Node.js installation/verification function
@@ -341,6 +380,187 @@ EOF
     echo -e "${GREEN}Daemon installation completed successfully!${NC}"
 }
 
+f_install_panel() {
+    echo -e "${GREEN}Installing panel...${NC}"
+    
+    # Verify Node.js and npm are properly installed before continuing
+    if ! command -v node &> /dev/null || ! command -v npm &> /dev/null; then
+        echo -e "${RED}Node.js or npm is not installed properly. Cannot continue with panel installation.${NC}"
+        echo -e "${YELLOW}Please ensure Node.js and npm are correctly installed before proceeding.${NC}"
+        return 1
+    fi
+    
+    mkdir -p /var/www
+    cd /var/www/ || { echo -e "${RED}Failed to change directory to /var/www/${NC}"; return 1; }
+    
+    # Check if panel directory already exists
+    if [ -d "/var/www/panel" ]; then
+        echo -e "${YELLOW}Panel directory already exists. Removing it before installation...${NC}"
+        rm -rf /var/www/panel
+    fi
+    
+    # Clone repository with error handling
+    if ! git clone https://github.com/g-flame/airlink-panel-fork.git; then
+        echo -e "${RED}Failed to clone panel repository. Please check your internet connection.${NC}"
+        return 1
+    fi
+    
+    cd panel || { echo -e "${RED}Failed to change directory to panel${NC}"; return 1; }
+    sudo chown -R www-data:www-data /var/www/panel
+    sudo chmod -R 755 /var/www/panel
+    
+    if [ -f "example.env" ]; then
+        cp example.env .env
+    else
+        echo -e "${RED}example.env file not found!${NC}"
+        return 1
+    fi
+    
+    # Install dependencies with error handling
+    echo -e "${YELLOW}Installing panel dependencies...${NC}"
+    if ! npm install --production; then
+        echo -e "${RED}Failed to install panel dependencies. Please check npm and Node.js setup.${NC}"
+        return 1
+    fi
+    
+    echo -e "${YELLOW}Running database migrations...${NC}"
+    if ! npm run migrate:dev; then
+        echo -e "${RED}Failed to run database migrations.${NC}"
+        return 1
+    fi
+    
+    echo -e "${YELLOW}Building TypeScript files...${NC}"
+    if ! npm run build-ts; then
+        echo -e "${RED}Failed to build TypeScript files.${NC}"
+        return 1
+    fi
+    
+    # Check if service file exists before trying to move it
+    if [ -f "/tmp/Airlink-installer/systemd/airlink-panel.service" ]; then
+        mv /tmp/Airlink-installer/systemd/airlink-panel.service /etc/systemd/system/
+    else
+        echo -e "${RED}Service file not found at /tmp/Airlink-installer/systemd/airlink-panel.service${NC}"
+        echo -e "${YELLOW}Creating a basic service file...${NC}"
+        cat > /etc/systemd/system/airlink-panel.service << EOF
+## Service by g-flame https://github.com/g-flame-oss
+[Unit]
+Description=Airlink panel Starting Service
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/var/www/panel
+ExecStart=/usr/bin/npm start
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    fi
+    
+    sudo systemctl daemon-reload
+    sudo systemctl enable airlink-panel.service
+    if ! sudo systemctl start airlink-panel.service; then
+        echo -e "${RED}Failed to start airlink-panel service. Please check the logs with 'journalctl -u airlink-panel.service'${NC}"
+        return 1
+    fi
+    
+    echo -e "${GREEN}Panel installation completed successfully!${NC}"
+}
+
+f_install_daemon() {
+    echo -e "${GREEN}Installing daemon...${NC}"
+    
+    # Verify Node.js and npm are properly installed before continuing
+    if ! command -v node &> /dev/null || ! command -v npm &> /dev/null; then
+        echo -e "${RED}Node.js or npm is not installed properly. Cannot continue with daemon installation.${NC}"
+        echo -e "${YELLOW}Please ensure Node.js and npm are correctly installed before proceeding.${NC}"
+        return 1
+    fi
+    
+    # Verify Docker is installed
+    if ! command -v docker &> /dev/null; then
+        echo -e "${YELLOW}Docker not found. Attempting to install Docker...${NC}"
+        if ! curl -sSL https://get.docker.com/ | CHANNEL=stable bash; then
+            echo -e "${RED}Failed to install Docker. Please install Docker manually and try again.${NC}"
+            return 1
+        fi
+    fi
+    
+    cd /etc/ || { echo -e "${RED}Failed to change directory to /etc/${NC}"; return 1; }
+    
+    # Check if daemon directory already exists
+    if [ -d "/etc/daemon" ]; then
+        echo -e "${YELLOW}Daemon directory already exists. Removing it before installation...${NC}"
+        rm -rf /etc/daemon
+    fi
+    
+    # Clone repository with error handling
+    if ! git clone https://github.com/g-flame/airlink-daemon-fork.git; then
+        echo -e "${RED}Failed to clone daemon repository. Please check your internet connection.${NC}"
+        return 1
+    fi
+    
+    cd daemon || { echo -e "${RED}Failed to change directory to daemon${NC}"; return 1; }
+    sudo chown -R www-data:www-data /etc/daemon
+    sudo chmod -R 755 /etc/daemon
+    
+    if [ -f "example.env" ]; then
+        cp example.env .env
+    else
+        echo -e "${RED}example.env file not found!${NC}"
+        return 1
+    fi
+    
+    # Install dependencies with error handling
+    echo -e "${YELLOW}Installing daemon dependencies...${NC}"
+    if ! npm install; then
+        echo -e "${RED}Failed to install daemon dependencies. Please check npm and Node.js setup.${NC}"
+        return 1
+    fi
+    
+    echo -e "${YELLOW}Building daemon...${NC}"
+    if ! npm run build; then
+        echo -e "${RED}Failed to build daemon.${NC}"
+        return 1
+    fi
+    
+    # Check if service file exists before trying to move it
+    if [ -f "/tmp/Airlink-installer/systemd/airlink-daemon.service" ]; then
+        mv /tmp/Airlink-installer/systemd/airlink-daemon.service /etc/systemd/system/
+    else
+        echo -e "${RED}Service file not found at /tmp/Airlink-installer/systemd/airlink-daemon.service${NC}"
+        echo -e "${YELLOW}Creating a basic service file...${NC}"
+        cat > /etc/systemd/system/airlink-daemon.service << EOF
+## Service by g-flame https://github.com/g-flame-oss
+[Unit]
+Description=Airlink daemon Starting Service
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/etc/daemon
+ExecStart=/usr/bin/node /etc/daemon/
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    fi
+    
+    sudo systemctl daemon-reload
+    sudo systemctl enable airlink-daemon.service
+    if ! sudo systemctl start airlink-daemon.service; then
+        echo -e "${RED}Failed to start airlink-daemon service. Please check the logs with 'journalctl -u airlink-daemon.service'${NC}"
+        return 1
+    fi
+    
+    echo -e "${GREEN}Daemon installation completed successfully!${NC}"
+}
+
+
 # Removal functions
 remove_panel() {
     echo -e "${YELLOW}Removing panel...${NC}"
@@ -406,8 +626,8 @@ tip_daemon() {
 tip_both() {
     clear
     echo -e "${YELLOW}-----------------------------------------------------${WHITE}"
-    echo -e "${YELLOW}|${RED}Your panel has been started visit localhost:3000  ${YELLOW} |${WHITE}"
-    echo -e "${YELLOW}|${RED}Your daemon has been started visit localhost:3002  ${YELLOW}|${WHITE}"
+    echo -e "${YELLOW}|${RED}Your Panel has been started visit http://localhost:3000  ${YELLOW} |${WHITE}"
+    echo -e "${YELLOW}|${RED}Your Daemon has been started visit http://localhost:3002  ${YELLOW}|${WHITE}"
     echo -e "${YELLOW}-----------------------------------------------------${WHITE}"
     
 }
@@ -420,17 +640,18 @@ install_dependencies() {
 
 # Display ASCII art logo
 display_logo() {
-echo -e " ${BLUE}----${GREEN}INSTALLER HOME${YELLOW}--------${WHITE}"
-echo -e " ${BLUE}    ___  _                _                ${WHITE}"
-echo -e " ${BLUE}   / _ \(_)     _(_)     | |               ${WHITE}"
-echo -e " ${BLUE}  / /_\ \ \_ _ | |_ _ __ | | __            ${WHITE}"
-echo -e " ${BLUE}  |  _  | | '__| | | '_ \| |/ /            ${WHITE}"
-echo -e " ${BLUE}  | | | | | |  | | | | | |   <             ${WHITE}"
-echo -e " ${BLUE}  \_| |_/_|_|  |_|_|_| |_|_|\_\            ${WHITE}"
-echo -e " ${BLUE}                                           ${WHITE}"
-echo -e " ${BLUE}airlink${WHITE} asm software installer!            "
-echo -e " panel and daemon by ${BLUE}airlinklabs${WHITE} © ${WHITE}"
-echo -e " install script by ${GREEN}G-flame!${WHITE}" 
+echo -e " ${BLUE}${GREEN}INSTALLER HOME${YELLOW}${WHITE}"
+echo -e " ${BLUE}      ___  _                _          ${WHITE}"
+echo -e " ${BLUE}     / _ \(_)     _(_)     | |         ${WHITE}"
+echo -e " ${BLUE}    / /_\ \ \_ _ | |_ _ __ | | __      ${WHITE}"
+echo -e " ${BLUE}    |  _  | | '__| | | '_ \| |/ /      ${WHITE}"
+echo -e " ${BLUE}    | | | | | |  | | | | | |   <       ${WHITE}"
+echo -e " ${BLUE}    \_| |_/_|_|  |_|_|_| |_|_|\_\      ${WHITE}"
+echo -e " ${BLUE}                                       ${WHITE}"
+echo -e "${BLUE}      Airlink${NC} asm software installer         "
+echo -e "Panel and Daemon by ${BLUE}Airlinklabs${NC} © MIT license"
+echo -e "       Install script by ${GREEN}G-flame!${NC}           "
+echo -e "__________________________________________________________"
 }
 
 # Main UI function
@@ -445,7 +666,7 @@ show_menu() {
     echo -e "6) ${RED}Remove ${BLUE}panel${NC} only!"
     echo -e "7) ${RED}Remove ${BLUE}daemon${NC} only!"
     echo -e "8) ${RED}Remove ${BLUE}dependencies${NC} only!"
-    echo -e "9) ${RED}Remove everything!{NC} "
+    echo -e "9) ${RED}Remove everything!${NC} "
     echo -e "10) ${RED}Exit${NC} installer!"
     
     read -p "What do you want to do? [1-9]: " choice
@@ -491,13 +712,13 @@ show_menu() {
 
         10)
             echo -e "${GREEN}Thank you for using the installer. Goodbye!${NC}"
+            tput rmcup
             exit 0
             ;;
         *)
             echo -e "\n${RED}That's not a valid option! Please try again.${NC}"
             ;;
     esac
-    
     echo -e "${YELLOW}-_--_--_--_--_--_-${GREEN}Log End${YELLOW}-_--_--_--_--_--_--_--_--_-${NC}"
     echo -e "${GREEN}Operation completed!${NC}"
     echo -e "\nPress Enter to return to the menu..."
@@ -506,6 +727,96 @@ show_menu() {
     show_menu
 }
 
-# actual code the pc reads Bruh!!
+# fallback selector
+f_show_menu() {
+    check_root
+    display_logo
+    echo -e "1) ${GREEN}Install ${BLUE}panel and daemon${NC} (dependencies too)!"
+    echo -e "2) ${GREEN}Install ${BLUE}panel${NC} only!"
+    echo -e "3) ${GREEN}Install ${BLUE}daemon${NC} only!"
+    echo -e "4) ${GREEN}Install ${BLUE}dependencies${NC} (both panel and daemon depends) only!"
+    echo -e "5) ${RED}Remove ${BLUE}panel and daemon${NC}!"
+    echo -e "6) ${RED}Remove ${BLUE}panel${NC} only!"
+    echo -e "7) ${RED}Remove ${BLUE}daemon${NC} only!"
+    echo -e "8) ${RED}Remove ${BLUE}dependencies${NC} only!"
+    echo -e "9) ${RED}Remove everything!${NC} "
+    echo -e "10) ${RED}Exit${NC} installer!"
+    
+    read -p "What do you want to do? [1-9]: " choice
+    
+    case $choice in
+        1)
+            install_dependencies
+            f_install_panel
+            f_install_daemon
+            tip_both
+            ;;
+        2)
+            panel_depends
+            f_install_panel
+            tip_panel
+            ;;
+        3)
+            daemon_depends
+            f_install_daemon
+            tip_daemon
+            ;;
+        4)
+            install_dependencies
+            ;;
+        5)
+            remove_panel
+            remove_daemon
+            ;;
+        6)
+            remove_panel
+            ;;
+        7)
+            remove_daemon
+            ;;
+        8)
+            remove_dependencies
+            ;;
+        9)
+            remove_panel
+            remove_daemon
+            remove_dependencies
+            ;;
+
+        10)
+            echo -e "${GREEN}Thank you for using the installer. Goodbye!${NC}"
+            restore_screen
+            exit 0
+            ;;
+        *)
+            echo -e "\n${RED}That's not a valid option! Please try again.${NC}"
+            ;;
+    esac
+    echo -e "${YELLOW}-_--_--_--_--_--_-${GREEN}Log End${YELLOW}-_--_--_--_--_--_--_--_--_-${NC}"
+    echo -e "${GREEN}Operation completed!${NC}"
+    echo -e "\nPress Enter to return to the menu..."
+    read
+    clear
+    f_show_menu
+}
+
+restore_screen() {
+    echo -e "${YELLOW}Restoring screen before Script!${NC}"
+    tput rmcup
+    exit 0
+}
+
+trap restore_screen SIGINT
+tput smcup
 clear
-show_menu
+# The Actual script start !!!!
+source_check
+# The Actual Script is above !!!!
+for i in {1..30}; do
+    echo -ne "Processing... $i/30\r"
+    sleep 1
+    if [ $? -ne 0 ]; then
+        break
+    fi
+done
+restore_screen
