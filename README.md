@@ -5,7 +5,6 @@
 [![Maintained](https://img.shields.io/badge/Maintained-yes-green.svg)](https://github.com/g-flame-oss/Airlink-installer)
 [![Debian Compatible](https://img.shields.io/badge/Debian-Compatible-blue)](https://github.com/g-flame-oss/Airlink-installer)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/github/v/release/g-flame-oss/Airlink-installer?include_prereleases)](https://github.com/g-flame-oss/Airlink-installer/releases)
 
 ## Introduction
 
