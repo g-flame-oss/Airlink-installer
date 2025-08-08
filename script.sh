@@ -361,7 +361,7 @@ After=network.target
 [Service]
 User=root
 WorkingDirectory=/etc/daemon
-ExecStart=/usr/bin/node /etc/daemon/
+ExecStart=/usr/bin/npm run start
 Restart=on-failure
 RestartSec=10
 
@@ -541,7 +541,7 @@ After=network.target
 [Service]
 User=root
 WorkingDirectory=/etc/daemon
-ExecStart=/usr/bin/node /etc/daemon/
+ExecStart=/usr/bin/npm run start
 Restart=on-failure
 RestartSec=10
 
