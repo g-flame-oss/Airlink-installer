@@ -19,7 +19,7 @@ Airlink Installer provides an efficient deployment solution for the Airlink pane
 ## Quick Installation
 
 ```bash
-bash <(curl -s https://raw.githubusercontent.com/g-flame-oss/Airlink-installer/refs/heads/main/installer.sh)
+bash <(curl -s https://raw.githubusercontent.com/g-flame-oss/Airlink-installer/refs/heads/main/script.sh)
 ```
 
 ## Key Features
