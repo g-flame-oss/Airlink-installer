@@ -3,247 +3,226 @@
 ##########################################################################################
 #       Universal Airlink Installer by G-flame @ https://github.com/g-flame              #
 #       Panel and Daemon by Airlinklabs @ https://github.com/airlinklabs                 #
-#                                                                                        #
-#       MIT License                                                                      #
-#                                                                                        #
-#       Copyright (c) 2025 G-flame-OSS                                                   #
-#                                                                                        #
-#       Permission is hereby granted, free of charge, to any person obtaining a copy     #
-#       of this software and associated documentation files (the "Software"), to deal    #
-#       in the Software without restriction, including without limitation the rights     #
-#       to use, copy, modify, merge, publish, distribute, sublicense, and/or sell        #
-#       copies of the Software, and to permit persons to whom the Software is            #
-#       furnished to do so, subject to the following conditions:                         #
-#                                                                                        #
-#       The above copyright notice and this permission notice shall be included in all   #
-#       copies or substantial portions of the Software.                                  #
-#                                                                                        #
-#       THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR       #
-#       IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,         #
-#       FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE      #
-#       AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER           #
-#       LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,    #
-#       OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE    #
-#       SOFTWARE.                                                                        #
+#       MIT License - Copyright (c) 2025 G-flame-OSS                                     #
 ##########################################################################################
 
 set -euo pipefail
 
-# Global variables
-SCRIPT_VERSION="2.0.0"
-LOG_FILE="/tmp/airlink-installer.log"
-NODE_VERSION="20"
-INSTALLER_DIR="/tmp/Airlink-installer"
-DIALOG_HEIGHT=20
-DIALOG_WIDTH=70
+# Script basics
+version="2.0.0"
+logfile="/tmp/airlink-installer.log"
+node_ver="20"
+temp_dir="/tmp/Airlink-installer"
+menu_height=20
+menu_width=70
 
-# Color definitions
-readonly RED='\033[0;31m'
-readonly GREEN='\033[0;32m'
-readonly YELLOW='\033[1;33m'
-readonly BLUE='\033[0;34m'
-readonly PURPLE='\033[0;35m'
-readonly CYAN='\033[0;36m'
-readonly WHITE='\033[1;37m'
-readonly BOLD='\033[1m'
-readonly NC='\033[0m'
+# Colors that make sense
+red='\033[0;31m'
+green='\033[0;32m'
+yellow='\033[1;33m'
+blue='\033[0;34m'
+purple='\033[0;35m'
+cyan='\033[0;36m'
+white='\033[1;37m'
+bold='\033[1m'
+reset='\033[0m'
 
-# Logging functions
-log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "${LOG_FILE}"
+# Simple logging
+write_log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$logfile"
 }
 
-log_info() {
-    echo -e "${CYAN}[INFO]${NC} $*"
-    log "INFO: $*"
+say_info() {
+    echo -e "${cyan}[INFO]${reset} $*"
+    write_log "INFO: $*"
 }
 
-log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $*"
-    log "SUCCESS: $*"
+say_good() {
+    echo -e "${green}[SUCCESS]${reset} $*"
+    write_log "SUCCESS: $*"
 }
 
-log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $*"
-    log "WARNING: $*"
+say_warn() {
+    echo -e "${yellow}[WARNING]${reset} $*"
+    write_log "WARNING: $*"
 }
 
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $*"
-    log "ERROR: $*"
+say_error() {
+    echo -e "${red}[ERROR]${reset} $*"
+    write_log "ERROR: $*"
 }
 
-# Progress bar function
+# Nice progress bar
 show_progress() {
-    local duration=$1
-    local message=$2
-    local progress=0
-    local bar_length=50
+    local time=$1
+    local msg=$2
+    local current=0
+    local bar_size=50
     
-    echo -e "${CYAN}${message}${NC}"
-    while [ $progress -le $duration ]; do
-        local filled=$((progress * bar_length / duration))
-        local empty=$((bar_length - filled))
+    echo -e "${cyan}${msg}${reset}"
+    while [ $current -le $time ]; do
+        local filled=$((current * bar_size / time))
+        local empty=$((bar_size - filled))
         
-        printf "\r${GREEN}["
+        printf "\r${green}["
         printf "%0.s#" $(seq 1 $filled)
         printf "%0.s-" $(seq 1 $empty)
-        printf "] %d%%${NC}" $((progress * 100 / duration))
+        printf "] %d%%${reset}" $((current * 100 / time))
         
         sleep 0.1
-        ((progress++))
+        ((current++))
     done
     echo
 }
 
-# System detection
-detect_os() {
+# Figure out what OS we're on
+detect_system() {
     if [[ -f /etc/os-release ]]; then
         . /etc/os-release
-        OS=$ID
-        OS_VERSION=$VERSION_ID
+        current_os=$ID
+        os_version=$VERSION_ID
     elif [[ -f /etc/redhat-release ]]; then
-        OS="rhel"
+        current_os="rhel"
     elif [[ -f /etc/debian_version ]]; then
-        OS="debian"
+        current_os="debian"
     else
-        log_error "Cannot detect operating system"
+        say_error "Can't figure out what OS this is"
         exit 1
     fi
     
-    case "$OS" in
+    case "$current_os" in
         ubuntu|debian|linuxmint|elementary|pop)
-            DISTRO_FAMILY="debian"
-            PKG_MANAGER="apt"
+            os_family="debian"
+            pkg_tool="apt"
             ;;
         fedora|centos|rhel|rocky|almalinux)
-            DISTRO_FAMILY="redhat"
-            PKG_MANAGER="yum"
-            command -v dnf >/dev/null 2>&1 && PKG_MANAGER="dnf"
+            os_family="redhat"
+            pkg_tool="yum"
+            command -v dnf >/dev/null 2>&1 && pkg_tool="dnf"
             ;;
         opensuse|sles)
-            DISTRO_FAMILY="opensuse"
-            PKG_MANAGER="zypper"
+            os_family="opensuse"
+            pkg_tool="zypper"
             ;;
         arch|manjaro|endeavouros)
-            DISTRO_FAMILY="arch"
-            PKG_MANAGER="pacman"
+            os_family="arch"
+            pkg_tool="pacman"
             ;;
         alpine)
-            DISTRO_FAMILY="alpine"
-            PKG_MANAGER="apk"
+            os_family="alpine"
+            pkg_tool="apk"
             ;;
         *)
-            log_error "Unsupported operating system: $OS"
+            say_error "Sorry, $current_os isn't supported yet"
             exit 1
             ;;
     esac
     
-    log_info "Detected OS: $OS ($DISTRO_FAMILY family)"
+    say_info "Found: $current_os ($os_family family)"
 }
 
-# Check dependencies
-check_dependencies() {
-    local deps=("curl" "wget" "dialog")
-    local missing_deps=()
+# Check if we have what we need
+check_basics() {
+    local needed=("curl" "wget" "dialog")
+    local missing=()
     
-    for dep in "${deps[@]}"; do
-        if ! command -v "$dep" >/dev/null 2>&1; then
-            missing_deps+=("$dep")
+    for tool in "${needed[@]}"; do
+        if ! command -v "$tool" >/dev/null 2>&1; then
+            missing+=("$tool")
         fi
     done
     
-    if [[ ${#missing_deps[@]} -gt 0 ]]; then
-        log_warning "Missing dependencies: ${missing_deps[*]}"
-        install_basic_dependencies "${missing_deps[@]}"
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        say_warn "Missing: ${missing[*]}"
+        install_basics "${missing[@]}"
     fi
 }
 
-# Install basic dependencies based on distro
-install_basic_dependencies() {
-    local deps=("$@")
+# Install the basic stuff we need
+install_basics() {
+    local tools=("$@")
     
-    log_info "Installing basic dependencies: ${deps[*]}"
+    say_info "Installing basics: ${tools[*]}"
     
-    case "$DISTRO_FAMILY" in
+    case "$os_family" in
         debian)
             apt-get update >/dev/null 2>&1
-            apt-get install -y "${deps[@]}" >/dev/null 2>&1
+            apt-get install -y "${tools[@]}" >/dev/null 2>&1
             ;;
         redhat)
-            $PKG_MANAGER install -y "${deps[@]}" >/dev/null 2>&1
+            $pkg_tool install -y "${tools[@]}" >/dev/null 2>&1
             ;;
         opensuse)
-            zypper install -y "${deps[@]}" >/dev/null 2>&1
+            zypper install -y "${tools[@]}" >/dev/null 2>&1
             ;;
         arch)
-            pacman -Sy --noconfirm "${deps[@]}" >/dev/null 2>&1
+            pacman -Sy --noconfirm "${tools[@]}" >/dev/null 2>&1
             ;;
         alpine)
-            apk add --no-cache "${deps[@]}" >/dev/null 2>&1
+            apk add --no-cache "${tools[@]}" >/dev/null 2>&1
             ;;
     esac
 }
 
-# Root check
-check_root() {
+# Make sure we're root
+need_root() {
     if [[ $EUID -ne 0 ]]; then
-        dialog --title "Permission Error" --msgbox "This script must be run as root or with sudo privileges." 8 50
+        dialog --title "Need Root" --msgbox "This needs to run as root or with sudo." 8 50
         exit 1
     fi
 }
 
-# Repository connectivity check
-check_repository() {
-    log_info "Checking repository connectivity..."
+# Check if we can reach the repos
+check_repos() {
+    say_info "Testing repo connection..."
     
     if git ls-remote https://github.com/airlinklabs/panel.git -q >/dev/null 2>&1; then
         return 0
     else
-        log_warning "Primary repository unreachable, using fallback"
+        say_warn "Main repo down, using backup"
         return 1
     fi
 }
 
-# Node.js installation function
-install_nodejs() {
-    log_info "Installing Node.js $NODE_VERSION..."
+# Get Node.js ready
+setup_nodejs() {
+    say_info "Setting up Node.js $node_ver..."
     
-    # Remove existing installations
-    remove_existing_nodejs
+    # Clean house first
+    remove_old_nodejs
     
-    case "$DISTRO_FAMILY" in
+    case "$os_family" in
         debian)
-            install_nodejs_debian
+            get_nodejs_debian
             ;;
         redhat)
-            install_nodejs_redhat
+            get_nodejs_redhat
             ;;
         opensuse)
-            install_nodejs_opensuse
+            get_nodejs_opensuse
             ;;
         arch)
-            install_nodejs_arch
+            get_nodejs_arch
             ;;
         alpine)
-            install_nodejs_alpine
+            get_nodejs_alpine
             ;;
     esac
     
-    verify_nodejs_installation
+    test_nodejs
 }
 
-remove_existing_nodejs() {
-    log_info "Removing existing Node.js installations..."
+remove_old_nodejs() {
+    say_info "Cleaning old Node.js..."
     
-    case "$DISTRO_FAMILY" in
+    case "$os_family" in
         debian)
             apt-get remove -y nodejs npm >/dev/null 2>&1 || true
             rm -f /etc/apt/sources.list.d/nodesource.list
             rm -f /etc/apt/keyrings/nodesource.gpg
             ;;
         redhat)
-            $PKG_MANAGER remove -y nodejs npm >/dev/null 2>&1 || true
+            $pkg_tool remove -y nodejs npm >/dev/null 2>&1 || true
             ;;
         opensuse)
             zypper remove -y nodejs20 npm20 >/dev/null 2>&1 || true
@@ -257,58 +236,53 @@ remove_existing_nodejs() {
     esac
 }
 
-install_nodejs_debian() {
-    # Install Node.js via NodeSource repository
-    curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash - >/dev/null 2>&1
+get_nodejs_debian() {
+    curl -fsSL https://deb.nodesource.com/setup_${node_ver}.x | bash - >/dev/null 2>&1
     apt-get install -y nodejs >/dev/null 2>&1
 }
 
-install_nodejs_redhat() {
-    # Install Node.js via NodeSource repository
-    curl -fsSL https://rpm.nodesource.com/setup_${NODE_VERSION}.x | bash - >/dev/null 2>&1
-    $PKG_MANAGER install -y nodejs >/dev/null 2>&1
+get_nodejs_redhat() {
+    curl -fsSL https://rpm.nodesource.com/setup_${node_ver}.x | bash - >/dev/null 2>&1
+    $pkg_tool install -y nodejs >/dev/null 2>&1
 }
 
-install_nodejs_opensuse() {
-    # Install Node.js from official repositories
-    zypper install -y nodejs${NODE_VERSION} npm${NODE_VERSION} >/dev/null 2>&1
+get_nodejs_opensuse() {
+    zypper install -y nodejs${node_ver} npm${node_ver} >/dev/null 2>&1
 }
 
-install_nodejs_arch() {
-    # Install Node.js from official repositories
+get_nodejs_arch() {
     pacman -Sy --noconfirm nodejs npm >/dev/null 2>&1
 }
 
-install_nodejs_alpine() {
-    # Install Node.js from official repositories
+get_nodejs_alpine() {
     apk add --no-cache nodejs npm >/dev/null 2>&1
 }
 
-verify_nodejs_installation() {
+test_nodejs() {
     if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
-        local node_ver=$(node -v)
-        local npm_ver=$(npm -v)
-        log_success "Node.js $node_ver and npm $npm_ver installed successfully"
+        local node_version=$(node -v)
+        local npm_version=$(npm -v)
+        say_good "Node.js $node_version and npm $npm_version ready"
         
-        # Install TypeScript globally
+        # Get TypeScript too
         npm install -g typescript >/dev/null 2>&1
-        log_success "TypeScript installed globally"
+        say_good "TypeScript installed"
     else
-        log_error "Node.js installation failed"
+        say_error "Node.js setup failed"
         exit 1
     fi
 }
 
-# Docker installation function
-install_docker() {
-    log_info "Installing Docker..."
+# Get Docker ready
+setup_docker() {
+    say_info "Setting up Docker..."
     
     if command -v docker >/dev/null 2>&1; then
-        log_info "Docker is already installed"
+        say_info "Docker already here"
         return 0
     fi
     
-    case "$DISTRO_FAMILY" in
+    case "$os_family" in
         debian|redhat|opensuse)
             curl -fsSL https://get.docker.com | sh >/dev/null 2>&1
             ;;
@@ -320,32 +294,32 @@ install_docker() {
             ;;
     esac
     
-    # Enable and start Docker service
+    # Start it up
     systemctl enable docker >/dev/null 2>&1
     systemctl start docker >/dev/null 2>&1
     
     if command -v docker >/dev/null 2>&1; then
-        log_success "Docker installed and started successfully"
+        say_good "Docker is running"
     else
-        log_error "Docker installation failed"
+        say_error "Docker setup failed"
         exit 1
     fi
 }
 
-# Git installation function
-install_git() {
+# Make sure git is ready
+setup_git() {
     if command -v git >/dev/null 2>&1; then
         return 0
     fi
     
-    log_info "Installing Git..."
+    say_info "Getting Git..."
     
-    case "$DISTRO_FAMILY" in
+    case "$os_family" in
         debian)
             apt-get install -y git >/dev/null 2>&1
             ;;
         redhat)
-            $PKG_MANAGER install -y git >/dev/null 2>&1
+            $pkg_tool install -y git >/dev/null 2>&1
             ;;
         opensuse)
             zypper install -y git >/dev/null 2>&1
@@ -358,202 +332,202 @@ install_git() {
             ;;
     esac
     
-    log_success "Git installed successfully"
+    say_good "Git ready"
 }
 
-# Panel installation function
+# Install the panel
 install_panel() {
-    local use_fallback=${1:-false}
+    local use_backup=${1:-false}
     local repo_url="https://github.com/airlinklabs/panel.git"
     
-    if [[ "$use_fallback" == "true" ]]; then
+    if [[ "$use_backup" == "true" ]]; then
         repo_url="https://github.com/g-flame/airlink-panel-fork.git"
     fi
     
-    log_info "Installing Airlink Panel..."
+    say_info "Installing Airlink Panel..."
     
-    # Verify prerequisites
-    verify_prerequisites
+    # Make sure we have what we need
+    check_prereqs
     
-    # Create directory and clone repository
+    # Set up shop
     mkdir -p /var/www
-    cd /var/www || { log_error "Failed to change to /var/www"; exit 1; }
+    cd /var/www || { say_error "Can't get to /var/www"; exit 1; }
     
-    # Remove existing installation
+    # Clean slate
     if [[ -d "/var/www/panel" ]]; then
-        log_warning "Removing existing panel installation"
+        say_warn "Removing old panel"
         rm -rf /var/www/panel
     fi
     
-    # Clone repository
-    show_progress 20 "Cloning panel repository..." &
-    PROGRESS_PID=$!
+    # Get the code
+    show_progress 20 "Getting panel code..." &
+    progress_pid=$!
     
     if ! git clone "$repo_url" panel >/dev/null 2>&1; then
-        kill $PROGRESS_PID 2>/dev/null || true
-        log_error "Failed to clone panel repository"
+        kill $progress_pid 2>/dev/null || true
+        say_error "Couldn't get panel code"
         exit 1
     fi
     
-    kill $PROGRESS_PID 2>/dev/null || true
+    kill $progress_pid 2>/dev/null || true
     
-    cd panel || { log_error "Failed to enter panel directory"; exit 1; }
+    cd panel || { say_error "Can't enter panel folder"; exit 1; }
     
-    # Set permissions
+    # Fix permissions
     chown -R www-data:www-data /var/www/panel 2>/dev/null || chown -R root:root /var/www/panel
     chmod -R 755 /var/www/panel
     
-    # Setup environment
+    # Set up config
     if [[ -f "example.env" ]]; then
         cp example.env .env
     else
-        log_error "example.env file not found"
+        say_error "Missing example.env file"
         exit 1
     fi
     
-    # Install dependencies
-    show_progress 30 "Installing panel dependencies..." &
-    PROGRESS_PID=$!
+    # Get dependencies
+    show_progress 30 "Installing panel stuff..." &
+    progress_pid=$!
     
     if ! npm install --production >/dev/null 2>&1; then
-        kill $PROGRESS_PID 2>/dev/null || true
-        log_error "Failed to install panel dependencies"
+        kill $progress_pid 2>/dev/null || true
+        say_error "Panel dependencies failed"
         exit 1
     fi
     
-    kill $PROGRESS_PID 2>/dev/null || true
+    kill $progress_pid 2>/dev/null || true
     
-    # Run migrations
-    show_progress 15 "Running database migrations..." &
-    PROGRESS_PID=$!
+    # Set up database
+    show_progress 15 "Setting up database..." &
+    progress_pid=$!
     
     if ! npm run migrate:dev >/dev/null 2>&1; then
-        kill $PROGRESS_PID 2>/dev/null || true
-        log_error "Failed to run database migrations"
+        kill $progress_pid 2>/dev/null || true
+        say_error "Database setup failed"
         exit 1
     fi
     
-    kill $PROGRESS_PID 2>/dev/null || true
+    kill $progress_pid 2>/dev/null || true
     
-    # Build TypeScript
-    show_progress 25 "Building TypeScript files..." &
-    PROGRESS_PID=$!
+    # Build it
+    show_progress 25 "Building panel..." &
+    progress_pid=$!
     
     if ! npm run build-ts >/dev/null 2>&1; then
-        kill $PROGRESS_PID 2>/dev/null || true
-        log_error "Failed to build TypeScript files"
+        kill $progress_pid 2>/dev/null || true
+        say_error "Panel build failed"
         exit 1
     fi
     
-    kill $PROGRESS_PID 2>/dev/null || true
+    kill $progress_pid 2>/dev/null || true
     
-    # Create systemd service
+    # Make it a service
     create_panel_service
     
-    # Start and enable service
+    # Start it up
     systemctl daemon-reload
     systemctl enable airlink-panel.service >/dev/null 2>&1
     systemctl start airlink-panel.service >/dev/null 2>&1
     
     if systemctl is-active --quiet airlink-panel.service; then
-        log_success "Panel installed and started successfully"
+        say_good "Panel is running"
     else
-        log_error "Panel service failed to start. Check logs: journalctl -u airlink-panel.service"
+        say_error "Panel won't start. Check: journalctl -u airlink-panel.service"
         exit 1
     fi
 }
 
-# Daemon installation function
+# Install the daemon
 install_daemon() {
-    local use_fallback=${1:-false}
+    local use_backup=${1:-false}
     local repo_url="https://github.com/airlinklabs/daemon.git"
     
-    if [[ "$use_fallback" == "true" ]]; then
+    if [[ "$use_backup" == "true" ]]; then
         repo_url="https://github.com/g-flame/airlink-daemon-fork.git"
     fi
     
-    log_info "Installing Airlink Daemon..."
+    say_info "Installing Airlink Daemon..."
     
-    # Verify prerequisites
-    verify_prerequisites
-    install_docker
+    # Make sure we have what we need
+    check_prereqs
+    setup_docker
     
-    # Create directory and clone repository
-    cd /etc || { log_error "Failed to change to /etc"; exit 1; }
+    # Set up shop
+    cd /etc || { say_error "Can't get to /etc"; exit 1; }
     
-    # Remove existing installation
+    # Clean slate
     if [[ -d "/etc/daemon" ]]; then
-        log_warning "Removing existing daemon installation"
+        say_warn "Removing old daemon"
         rm -rf /etc/daemon
     fi
     
-    # Clone repository
-    show_progress 20 "Cloning daemon repository..." &
-    PROGRESS_PID=$!
+    # Get the code
+    show_progress 20 "Getting daemon code..." &
+    progress_pid=$!
     
     if ! git clone "$repo_url" daemon >/dev/null 2>&1; then
-        kill $PROGRESS_PID 2>/dev/null || true
-        log_error "Failed to clone daemon repository"
+        kill $progress_pid 2>/dev/null || true
+        say_error "Couldn't get daemon code"
         exit 1
     fi
     
-    kill $PROGRESS_PID 2>/dev/null || true
+    kill $progress_pid 2>/dev/null || true
     
-    cd daemon || { log_error "Failed to enter daemon directory"; exit 1; }
+    cd daemon || { say_error "Can't enter daemon folder"; exit 1; }
     
-    # Set permissions
+    # Fix permissions
     chown -R www-data:www-data /etc/daemon 2>/dev/null || chown -R root:root /etc/daemon
     chmod -R 755 /etc/daemon
     
-    # Setup environment
+    # Set up config
     if [[ -f "example.env" ]]; then
         cp example.env .env
     else
-        log_error "example.env file not found"
+        say_error "Missing example.env file"
         exit 1
     fi
     
-    # Install dependencies
-    show_progress 30 "Installing daemon dependencies..." &
-    PROGRESS_PID=$!
+    # Get dependencies
+    show_progress 30 "Installing daemon stuff..." &
+    progress_pid=$!
     
     if ! npm install >/dev/null 2>&1; then
-        kill $PROGRESS_PID 2>/dev/null || true
-        log_error "Failed to install daemon dependencies"
+        kill $progress_pid 2>/dev/null || true
+        say_error "Daemon dependencies failed"
         exit 1
     fi
     
-    kill $PROGRESS_PID 2>/dev/null || true
+    kill $progress_pid 2>/dev/null || true
     
-    # Build daemon
+    # Build it
     show_progress 20 "Building daemon..." &
-    PROGRESS_PID=$!
+    progress_pid=$!
     
     if ! npm run build >/dev/null 2>&1; then
-        kill $PROGRESS_PID 2>/dev/null || true
-        log_error "Failed to build daemon"
+        kill $progress_pid 2>/dev/null || true
+        say_error "Daemon build failed"
         exit 1
     fi
     
-    kill $PROGRESS_PID 2>/dev/null || true
+    kill $progress_pid 2>/dev/null || true
     
-    # Create systemd service
+    # Make it a service
     create_daemon_service
     
-    # Start and enable service
+    # Start it up
     systemctl daemon-reload
     systemctl enable airlink-daemon.service >/dev/null 2>&1
     systemctl start airlink-daemon.service >/dev/null 2>&1
     
     if systemctl is-active --quiet airlink-daemon.service; then
-        log_success "Daemon installed and started successfully"
+        say_good "Daemon is running"
     else
-        log_error "Daemon service failed to start. Check logs: journalctl -u airlink-daemon.service"
+        say_error "Daemon won't start. Check: journalctl -u airlink-daemon.service"
         exit 1
     fi
 }
 
-# Service creation functions
+# Create service files
 create_panel_service() {
     cat > /etc/systemd/system/airlink-panel.service << EOF
 [Unit]
@@ -597,72 +571,72 @@ WantedBy=multi-user.target
 EOF
 }
 
-# Prerequisite verification
-verify_prerequisites() {
+# Make sure we have what we need
+check_prereqs() {
     if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
-        log_error "Node.js or npm not found. Installing..."
-        install_nodejs
+        say_error "Need Node.js. Installing..."
+        setup_nodejs
     fi
     
     if ! command -v git >/dev/null 2>&1; then
-        install_git
+        setup_git
     fi
 }
 
-# Removal functions
+# Remove stuff
 remove_panel() {
-    log_info "Removing Airlink Panel..."
+    say_info "Removing Airlink Panel..."
     
-    # Stop and disable service
+    # Stop it
     systemctl stop airlink-panel.service >/dev/null 2>&1 || true
     systemctl disable airlink-panel.service >/dev/null 2>&1 || true
     rm -f /etc/systemd/system/airlink-panel.service
     systemctl daemon-reload
     
-    # Remove files
+    # Delete it
     if [[ -d "/var/www/panel" ]]; then
         rm -rf /var/www/panel
-        log_success "Panel removed successfully"
+        say_good "Panel removed"
     else
-        log_warning "Panel installation not found"
+        say_warn "Panel wasn't installed"
     fi
 }
 
 remove_daemon() {
-    log_info "Removing Airlink Daemon..."
+    say_info "Removing Airlink Daemon..."
     
-    # Stop and disable service
+    # Stop it
     systemctl stop airlink-daemon.service >/dev/null 2>&1 || true
     systemctl disable airlink-daemon.service >/dev/null 2>&1 || true
     rm -f /etc/systemd/system/airlink-daemon.service
     systemctl daemon-reload
     
-    # Remove files
+    # Delete it
     if [[ -d "/etc/daemon" ]]; then
         rm -rf /etc/daemon
-        log_success "Daemon removed successfully"
+        say_good "Daemon removed"
     else
-        log_warning "Daemon installation not found"
+        say_warn "Daemon wasn't installed"
     fi
 }
 
-remove_dependencies() {
-    log_info "Removing dependencies..."
+remove_everything() {
+    say_info "Removing all dependencies..."
     
-    # Remove Docker
+    # Bye Docker
     if command -v docker >/dev/null 2>&1; then
-        log_info "Removing Docker..."
+        say_info "Removing Docker..."
         systemctl stop docker >/dev/null 2>&1 || true
         systemctl disable docker >/dev/null 2>&1 || true
         
-        case "$DISTRO_FAMILY" in
+        case "$os_family" in
             debian)
                 apt-get remove -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin >/dev/null 2>&1 || true
                 rm -f /etc/apt/sources.list.d/docker.list
                 rm -f /etc/apt/keyrings/docker.gpg
                 ;;
             redhat)
-                $PKG_MANAGER remove -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin >/dev/null 2>&1 || true
+                $pkg_tool remove -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin >/dev/null 2>&1 || true
                 ;;
             arch)
                 pacman -R --noconfirm docker >/dev/null 2>&1 || true
@@ -673,36 +647,36 @@ remove_dependencies() {
         esac
     fi
     
-    # Remove Node.js
+    # Bye Node.js
     if command -v node >/dev/null 2>&1; then
-        log_info "Removing Node.js..."
+        say_info "Removing Node.js..."
         npm uninstall -g typescript >/dev/null 2>&1 || true
-        remove_existing_nodejs
+        remove_old_nodejs
     fi
     
-    # Clean up package cache
-    case "$DISTRO_FAMILY" in
+    # Clean up
+    case "$os_family" in
         debian)
             apt-get autoremove -y >/dev/null 2>&1
             apt-get autoclean >/dev/null 2>&1
             ;;
         redhat)
-            $PKG_MANAGER autoremove -y >/dev/null 2>&1 || true
+            $pkg_tool autoremove -y >/dev/null 2>&1 || true
             ;;
         arch)
             pacman -Rns --noconfirm $(pacman -Qtdq) >/dev/null 2>&1 || true
             ;;
     esac
     
-    log_success "Dependencies removed successfully"
+    say_good "Everything cleaned up"
 }
 
-# Display functions
-display_logo() {
+# Show the logo
+show_logo() {
     clear
-    echo -e "${BOLD}${BLUE}"
+    echo -e "${bold}${blue}"
     echo "    ╔══════════════════════════════════════════════════════════════╗"
-    echo "    ║                    AIRLINK INSTALLER v${SCRIPT_VERSION}                  ║"
+    echo "    ║                    AIRLINK INSTALLER v${version}                  ║"
     echo "    ╠══════════════════════════════════════════════════════════════╣"
     echo "    ║      ___  _      _ _       _                                  ║"
     echo "    ║     / _ \\(_)_ __| (_)_ __ | | __                              ║"
@@ -711,38 +685,38 @@ display_logo() {
     echo "    ║    | | | |_| |  |_|_|_| |_|_|\\_\\                              ║"
     echo "    ║                                                              ║"
     echo "    ╠══════════════════════════════════════════════════════════════╣"
-    echo -e "    ║  ${GREEN}Panel and Daemon by ${CYAN}Airlinklabs${BLUE} © MIT License           ║"
-    echo -e "    ║  ${GREEN}Universal Installer by ${YELLOW}G-flame${BLUE}                        ║"
-    echo -e "    ║  ${PURPLE}Detected: $OS ($DISTRO_FAMILY)${BLUE}                               ║"
+    echo -e "    ║  ${green}Panel and Daemon by ${cyan}Airlinklabs${blue} © MIT License           ║"
+    echo -e "    ║  ${green}Universal Installer by ${yellow}G-flame${blue}                        ║"
+    echo -e "    ║  ${purple}Detected: $current_os ($os_family)${blue}                               ║"
     echo "    ╚══════════════════════════════════════════════════════════════╝"
-    echo -e "${NC}"
+    echo -e "${reset}"
 }
 
-show_completion_message() {
-    local service_type="$1"
+show_done() {
+    local what="$1"
     local port="$2"
     
-    dialog --title "Installation Complete" \
-           --msgbox "Airlink $service_type has been installed successfully!\n\nAccess it at: http://localhost:$port\n\nService status: systemctl status airlink-$service_type.service\nLogs: journalctl -u airlink-$service_type.service" \
+    dialog --title "All Done!" \
+           --msgbox "Airlink $what is ready!\n\nAccess it at: http://localhost:$port\n\nService status: systemctl status airlink-$what.service\nLogs: journalctl -u airlink-$what.service" \
            12 60
 }
 
-# Main menu function
-show_main_menu() {
-    local use_fallback=${1:-false}
+# The main menu
+show_menu() {
+    local use_backup=${1:-false}
     local repo_status="Primary"
     
-    if [[ "$use_fallback" == "true" ]]; then
-        repo_status="Fallback"
+    if [[ "$use_backup" == "true" ]]; then
+        repo_status="Backup"
     fi
     
     while true; do
-        display_logo
+        show_logo
         
-        choice=$(dialog --clear --title "Airlink Installer - $repo_status Repositories" \
-                       --menu "Choose an installation option:" \
-                       $DIALOG_HEIGHT $DIALOG_WIDTH 12 \
-                       1 "Install Panel + Daemon (Full Stack)" \
+        choice=$(dialog --clear --title "Airlink Installer - $repo_status Repos" \
+                       --menu "What would you like to do?" \
+                       $menu_height $menu_width 12 \
+                       1 "Install Everything (Panel + Daemon)" \
                        2 "Install Panel Only" \
                        3 "Install Daemon Only" \
                        4 "Install Dependencies Only" \
@@ -751,77 +725,77 @@ show_main_menu() {
                        7 "Remove Daemon Only" \
                        8 "Remove Dependencies Only" \
                        9 "Remove Everything" \
-                       10 "View System Information" \
-                       11 "View Installation Logs" \
+                       10 "System Info" \
+                       11 "View Logs" \
                        0 "Exit" 3>&1 1>&2 2>&3)
         
         case $choice in
             1)
-                dialog --title "Full Installation" --infobox "Installing Panel and Daemon with dependencies..." 5 50
-                install_nodejs
-                install_git
-                install_panel "$use_fallback"
-                install_daemon "$use_fallback"
-                show_completion_message "panel" "3000"
-                dialog --title "Installation Complete" --msgbox "Both Panel (port 3000) and Daemon (port 3002) are now running!" 8 50
+                dialog --title "Full Install" --infobox "Installing everything..." 5 50
+                setup_nodejs
+                setup_git
+                install_panel "$use_backup"
+                install_daemon "$use_backup"
+                show_done "panel" "3000"
+                dialog --title "All Done!" --msgbox "Panel (port 3000) and Daemon (port 3002) are running!" 8 50
                 ;;
             2)
-                dialog --title "Panel Installation" --infobox "Installing Panel with dependencies..." 5 50
-                install_nodejs
-                install_git
-                install_panel "$use_fallback"
-                show_completion_message "panel" "3000"
+                dialog --title "Panel Install" --infobox "Installing panel..." 5 50
+                setup_nodejs
+                setup_git
+                install_panel "$use_backup"
+                show_done "panel" "3000"
                 ;;
             3)
-                dialog --title "Daemon Installation" --infobox "Installing Daemon with dependencies..." 5 50
-                install_nodejs
-                install_git
-                install_daemon "$use_fallback"
-                show_completion_message "daemon" "3002"
+                dialog --title "Daemon Install" --infobox "Installing daemon..." 5 50
+                setup_nodejs
+                setup_git
+                install_daemon "$use_backup"
+                show_done "daemon" "3002"
                 ;;
             4)
-                dialog --title "Dependencies Installation" --infobox "Installing all dependencies..." 5 50
-                install_nodejs
-                install_git
-                install_docker
-                dialog --title "Success" --msgbox "All dependencies installed successfully!" 6 40
+                dialog --title "Dependencies" --infobox "Installing dependencies..." 5 50
+                setup_nodejs
+                setup_git
+                setup_docker
+                dialog --title "Done!" --msgbox "All dependencies ready!" 6 40
                 ;;
             5)
-                dialog --title "Removal" --yesno "Remove both Panel and Daemon?" 6 40
+                dialog --title "Remove" --yesno "Remove both Panel and Daemon?" 6 40
                 if [[ $? -eq 0 ]]; then
                     remove_panel
                     remove_daemon
-                    dialog --title "Success" --msgbox "Panel and Daemon removed successfully!" 6 40
+                    dialog --title "Done!" --msgbox "Panel and Daemon removed!" 6 40
                 fi
                 ;;
             6)
-                dialog --title "Removal" --yesno "Remove Panel only?" 6 40
+                dialog --title "Remove" --yesno "Remove Panel?" 6 40
                 if [[ $? -eq 0 ]]; then
                     remove_panel
-                    dialog --title "Success" --msgbox "Panel removed successfully!" 6 40
+                    dialog --title "Done!" --msgbox "Panel removed!" 6 40
                 fi
                 ;;
             7)
-                dialog --title "Removal" --yesno "Remove Daemon only?" 6 40
+                dialog --title "Remove" --yesno "Remove Daemon?" 6 40
                 if [[ $? -eq 0 ]]; then
                     remove_daemon
-                    dialog --title "Success" --msgbox "Daemon removed successfully!" 6 40
+                    dialog --title "Done!" --msgbox "Daemon removed!" 6 40
                 fi
                 ;;
             8)
-                dialog --title "Removal" --yesno "Remove all dependencies?" 6 40
+                dialog --title "Remove" --yesno "Remove all dependencies?" 6 40
                 if [[ $? -eq 0 ]]; then
-                    remove_dependencies
-                    dialog --title "Success" --msgbox "Dependencies removed successfully!" 6 40
+                    remove_everything
+                    dialog --title "Done!" --msgbox "Dependencies removed!" 6 40
                 fi
                 ;;
             9)
-                dialog --title "Complete Removal" --yesno "Remove EVERYTHING (Panel, Daemon, and Dependencies)?" 8 50
+                dialog --title "Remove Everything" --yesno "Remove EVERYTHING?" 8 50
                 if [[ $? -eq 0 ]]; then
                     remove_panel
                     remove_daemon
-                    remove_dependencies
-                    dialog --title "Success" --msgbox "Everything removed successfully!" 6 40
+                    remove_everything
+                    dialog --title "Done!" --msgbox "Everything removed!" 6 40
                 fi
                 ;;
             10)
@@ -831,16 +805,16 @@ show_main_menu() {
                 show_logs
                 ;;
             0)
-                dialog --title "Exit" --yesno "Are you sure you want to exit?" 6 40
+                dialog --title "Exit" --yesno "Really exit?" 6 40
                 if [[ $? -eq 0 ]]; then
                     clear
-                    log_info "Installer exited by user"
-                    echo -e "${GREEN}Thank you for using the Airlink Installer!${NC}"
+                    write_log "User exited"
+                    echo -e "${green}Thanks for using Airlink Installer!${reset}"
                     exit 0
                 fi
                 ;;
             *)
-                dialog --title "Error" --msgbox "Invalid selection. Please try again." 6 40
+                dialog --title "Oops" --msgbox "That's not a valid choice." 6 40
                 ;;
         esac
     done
@@ -857,71 +831,46 @@ show_system_info() {
     command -v docker >/dev/null 2>&1 && docker_version=$(docker -v | cut -d' ' -f3 | sed 's/,//')
     command -v git >/dev/null 2>&1 && git_version=$(git --version | cut -d' ' -f3)
     
-    dialog --title "System Information" \
-           --msgbox "Operating System: $OS $OS_VERSION
-Distribution Family: $DISTRO_FAMILY
-Package Manager: $PKG_MANAGER
+    dialog --title "System Info" \
+           --msgbox "OS: $current_os $os_version
+Family: $os_family
+Package Manager: $pkg_tool
 
-Installed Components:
+What's Installed:
 - Node.js: $node_version
 - npm: $npm_version
 - Docker: $docker_version
 - Git: $git_version
 
-Services Status:
-- Panel: $(systemctl is-active airlink-panel.service 2>/dev/null || echo 'not installed')
-- Daemon: $(systemctl is-active airlink-daemon.service 2>/dev/null || echo 'not installed')" \
+Service Status:
+- Panel: $(systemctl is-active airlink-panel.service 2>/dev/null || echo 'not running')
+- Daemon: $(systemctl is-active airlink-daemon.service 2>/dev/null || echo 'not running')" \
            18 70
 }
 
 show_logs() {
-    if [[ -f "$LOG_FILE" ]]; then
-        dialog --title "Installation Logs" --textbox "$LOG_FILE" 20 80
+    if [[ -f "$logfile" ]]; then
+        dialog --title "Logs" --textbox "$logfile" 20 80
     else
-        dialog --title "No Logs" --msgbox "No installation logs found." 6 30
+        dialog --title "No Logs" --msgbox "No logs found yet." 6 30
     fi
 }
 
-# Service management functions
-check_service_status() {
-    local service="$1"
-    if systemctl is-active --quiet "$service"; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-restart_services() {
-    local services=("$@")
-    for service in "${services[@]}"; do
-        if systemctl is-enabled --quiet "$service" 2>/dev/null; then
-            log_info "Restarting $service..."
-            systemctl restart "$service"
-            if check_service_status "$service"; then
-                log_success "$service restarted successfully"
-            else
-                log_error "$service failed to restart"
-            fi
-        fi
-    done
-}
-
-# Cleanup function
+# Clean up temp files
 cleanup() {
-    log_info "Performing cleanup..."
+    write_log "Cleaning up..."
     
-    # Remove temporary files
+    # Remove temp files
     rm -rf /tmp/node-*
     rm -rf /tmp/npm-*
     
-    # Clear package manager cache based on distro
-    case "$DISTRO_FAMILY" in
+    # Clean package cache
+    case "$os_family" in
         debian)
             apt-get clean >/dev/null 2>&1
             ;;
         redhat)
-            $PKG_MANAGER clean all >/dev/null 2>&1
+            $pkg_tool clean all >/dev/null 2>&1
             ;;
         arch)
             pacman -Sc --noconfirm >/dev/null 2>&1
@@ -931,132 +880,64 @@ cleanup() {
             ;;
     esac
     
-    log_success "Cleanup completed"
+    say_good "Cleanup done"
 }
 
-# Error handling
+# Handle errors nicely
 handle_error() {
     local exit_code=$?
-    local line_number=$1
+    local line_num=$1
     
-    log_error "An error occurred on line $line_number with exit code $exit_code"
+    say_error "Something went wrong on line $line_num (code $exit_code)"
     
-    dialog --title "Error Occurred" \
-           --msgbox "An error occurred during installation.\nCheck the logs for more details: $LOG_FILE\n\nLine: $line_number\nExit Code: $exit_code" \
+    dialog --title "Oops!" \
+           --msgbox "Something went wrong during installation.\nCheck logs: $logfile\n\nLine: $line_num\nCode: $exit_code" \
            10 50
     
     cleanup
     exit $exit_code
 }
 
-# Trap for error handling
-trap 'handle_error $LINENO' ERR
-
-# Signal handling
+# Handle interruptions
 handle_interrupt() {
-    log_warning "Installation interrupted by user"
-    dialog --title "Interrupted" --msgbox "Installation was interrupted. Cleaning up..." 6 40
+    write_log "User interrupted"
+    dialog --title "Interrupted" --msgbox "Installation stopped. Cleaning up..." 6 40
     cleanup
     clear
     exit 1
 }
 
+# Set up error handling
+trap 'handle_error $LINENO' ERR
 trap handle_interrupt INT TERM
 
-# Update check function
-check_for_updates() {
-    local current_version="$SCRIPT_VERSION"
-    local latest_version
+# Check for script updates
+check_updates() {
+    local current="$version"
+    local latest
     
-    log_info "Checking for installer updates..."
+    write_log "Checking for updates..."
     
-    # Try to fetch the latest version from GitHub
-    if latest_version=$(curl -s https://api.github.com/repos/g-flame/airlink-installer/releases/latest | grep -oP '"tag_name": "\K(.*)(?=")' 2>/dev/null); then
-        if [[ "$latest_version" != "$current_version" ]]; then
+    if latest=$(curl -s https://api.github.com/repos/g-flame/airlink-installer/releases/latest | grep -oP '"tag_name": "\K(.*)(?=")' 2>/dev/null); then
+        if [[ "$latest" != "$current" ]]; then
             dialog --title "Update Available" \
-                   --yesno "A newer version of the installer is available:\nCurrent: $current_version\nLatest: $latest_version\n\nWould you like to download it?" \
+                   --yesno "New version available:\nCurrent: $current\nLatest: $latest\n\nWant to get it?" \
                    10 50
             
             if [[ $? -eq 0 ]]; then
-                log_info "User chose to update installer"
-                dialog --title "Update" --msgbox "Please visit https://github.com/g-flame/airlink-installer to download the latest version." 8 60
+                write_log "User wants to update"
+                dialog --title "Update" --msgbox "Visit https://github.com/g-flame/airlink-installer for the latest version." 8 60
             fi
         else
-            log_info "Installer is up to date"
+            write_log "Already up to date"
         fi
     else
-        log_warning "Could not check for updates"
+        say_warn "Couldn't check for updates"
     fi
 }
 
-# Backup and restore functions
-create_backup() {
-    local component="$1"
-    local backup_dir="/tmp/airlink-backup-$(date +%Y%m%d_%H%M%S)"
-    
-    log_info "Creating backup of $component..."
-    mkdir -p "$backup_dir"
-    
-    case "$component" in
-        panel)
-            if [[ -d "/var/www/panel" ]]; then
-                cp -r /var/www/panel "$backup_dir/"
-                log_success "Panel backup created at $backup_dir"
-            fi
-            ;;
-        daemon)
-            if [[ -d "/etc/daemon" ]]; then
-                cp -r /etc/daemon "$backup_dir/"
-                log_success "Daemon backup created at $backup_dir"
-            fi
-            ;;
-        both)
-            [[ -d "/var/www/panel" ]] && cp -r /var/www/panel "$backup_dir/"
-            [[ -d "/etc/daemon" ]] && cp -r /etc/daemon "$backup_dir/"
-            log_success "Full backup created at $backup_dir"
-            ;;
-    esac
-    
-    echo "$backup_dir" > /tmp/airlink-last-backup
-}
-
-# Configuration validation
-validate_installation() {
-    local component="$1"
-    local errors=()
-    
-    log_info "Validating $component installation..."
-    
-    case "$component" in
-        panel)
-            [[ ! -d "/var/www/panel" ]] && errors+=("Panel directory not found")
-            [[ ! -f "/var/www/panel/.env" ]] && errors+=("Panel configuration missing")
-            [[ ! -f "/etc/systemd/system/airlink-panel.service" ]] && errors+=("Panel service not found")
-            ! check_service_status "airlink-panel.service" && errors+=("Panel service not running")
-            ;;
-        daemon)
-            [[ ! -d "/etc/daemon" ]] && errors+=("Daemon directory not found")
-            [[ ! -f "/etc/daemon/.env" ]] && errors+=("Daemon configuration missing")
-            [[ ! -f "/etc/systemd/system/airlink-daemon.service" ]] && errors+=("Daemon service not found")
-            ! check_service_status "airlink-daemon.service" && errors+=("Daemon service not running")
-            ! command -v docker >/dev/null 2>&1 && errors+=("Docker not available")
-            ;;
-    esac
-    
-    if [[ ${#errors[@]} -eq 0 ]]; then
-        log_success "$component validation passed"
-        return 0
-    else
-        log_error "$component validation failed:"
-        printf '%s\n' "${errors[@]}" | while read -r error; do
-            log_error "  - $error"
-        done
-        return 1
-    fi
-}
-
-# Port availability check
-check_port_availability() {
+# Check if ports are free
+check_port() {
     local port="$1"
     if command -v ss >/dev/null 2>&1; then
         ss -tuln | grep -q ":$port " && return 1
@@ -1066,104 +947,104 @@ check_port_availability() {
     return 0
 }
 
-# Pre-installation checks
-pre_installation_check() {
-    log_info "Running pre-installation checks..."
+# Pre-flight checks
+pre_checks() {
+    write_log "Running pre-checks..."
     
-    # Check available disk space (minimum 2GB)
-    local available_space=$(df /var 2>/dev/null | awk 'NR==2 {print $4}' || echo "0")
-    if [[ $available_space -lt 2097152 ]]; then
-        dialog --title "Insufficient Space" --msgbox "Insufficient disk space. At least 2GB required in /var directory." 8 50
+    # Check disk space (need at least 2GB)
+    local space=$(df /var 2>/dev/null | awk 'NR==2 {print $4}' || echo "0")
+    if [[ $space -lt 2097152 ]]; then
+        dialog --title "Not Enough Space" --msgbox "Need at least 2GB free in /var directory." 8 50
         exit 1
     fi
     
-    # Check if ports are available
-    local ports_in_use=()
-    ! check_port_availability 3000 && ports_in_use+=("3000 (Panel)")
-    ! check_port_availability 3002 && ports_in_use+=("3002 (Daemon)")
+    # Check if ports are busy
+    local busy_ports=()
+    ! check_port 3000 && busy_ports+=("3000 (Panel)")
+    ! check_port 3002 && busy_ports+=("3002 (Daemon)")
     
-    if [[ ${#ports_in_use[@]} -gt 0 ]]; then
+    if [[ ${#busy_ports[@]} -gt 0 ]]; then
         local port_list=""
-        for port in "${ports_in_use[@]}"; do
+        for port in "${busy_ports[@]}"; do
             port_list="$port_list\n- $port"
         done
         
-        dialog --title "Ports in Use" \
-               --yesno "The following ports are already in use:$port_list\n\nContinue anyway?" \
+        dialog --title "Ports Busy" \
+               --yesno "These ports are already used:$port_list\n\nContinue anyway?" \
                10 50
         
         [[ $? -ne 0 ]] && exit 1
     fi
     
-    log_success "Pre-installation checks passed"
+    say_good "Pre-checks passed"
 }
 
-# Main execution flow
+# Main function
 main() {
-    # Initialize logging
-    touch "$LOG_FILE"
-    log_info "Starting Airlink Installer v$SCRIPT_VERSION"
+    # Start logging
+    touch "$logfile"
+    write_log "Starting Airlink Installer v$version"
     
-    # Check if running as root
-    check_root
+    # Need root
+    need_root
     
-    # Detect operating system
-    detect_os
+    # Figure out the system
+    detect_system
     
-    # Check and install basic dependencies
-    check_dependencies
+    # Get basics ready
+    check_basics
     
     # Check for updates
-    check_for_updates
+    check_updates
     
-    # Run pre-installation checks
-    pre_installation_check
+    # Pre-flight checks
+    pre_checks
     
-    # Check repository connectivity
-    if check_repository; then
-        log_info "Using primary repositories"
-        show_main_menu false
+    # Test repo connection
+    if check_repos; then
+        write_log "Using main repos"
+        show_menu false
     else
-        log_warning "Primary repositories unavailable, using fallback"
-        dialog --title "Repository Notice" \
-               --msgbox "Primary repositories are not accessible.\nUsing fallback repositories instead." \
+        write_log "Using backup repos"
+        dialog --title "Repo Notice" \
+               --msgbox "Main repos not available.\nUsing backup repos instead." \
                8 50
-        show_main_menu true
+        show_menu true
     fi
 }
 
-# Version information
+# Show version
 show_version() {
-    echo "Airlink Universal Installer v$SCRIPT_VERSION"
+    echo "Airlink Universal Installer v$version"
     echo "Copyright (c) 2025 G-flame-OSS"
-    echo "Licensed under MIT License"
+    echo "MIT License"
 }
 
-# Help information
+# Show help
 show_help() {
     cat << EOF
-Airlink Universal Installer v$SCRIPT_VERSION
+Airlink Universal Installer v$version
 
 USAGE:
     $0 [OPTIONS]
 
 OPTIONS:
-    -h, --help       Show this help message
-    -v, --version    Show version information
-    --log-file FILE  Specify custom log file location
-    --no-color       Disable colored output
-    --debug          Enable debug mode
+    -h, --help       Show this help
+    -v, --version    Show version
+    --log-file FILE  Custom log file
+    --no-color       No colors
+    --debug          Debug mode
 
 EXAMPLES:
-    $0                    # Run interactive installer
-    $0 --version          # Show version
-    $0 --log-file /tmp/my.log  # Use custom log file
+    $0                        # Run installer
+    $0 --version              # Show version
+    $0 --log-file /tmp/my.log # Custom log
 
-For more information, visit: https://github.com/g-flame/airlink-installer
+More info: https://github.com/g-flame/airlink-installer
 EOF
 }
 
-# Command line argument handling
+# Handle command line args
 while [[ $# -gt 0 ]]; do
     case $1 in
         -h|--help)
@@ -1175,19 +1056,19 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         --log-file)
-            LOG_FILE="$2"
+            logfile="$2"
             shift 2
             ;;
         --no-color)
-            RED=''
-            GREEN=''
-            YELLOW=''
-            BLUE=''
-            PURPLE=''
-            CYAN=''
-            WHITE=''
-            BOLD=''
-            NC=''
+            red=''
+            green=''
+            yellow=''
+            blue=''
+            purple=''
+            cyan=''
+            white=''
+            bold=''
+            reset=''
             shift
             ;;
         --debug)
@@ -1202,5 +1083,5 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Start main execution
+# Let's go!
 main
