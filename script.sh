@@ -360,16 +360,11 @@ install_panel() {
     fi
     
     # Get the code
-    show_progress 20 "Getting panel code..." &
-    progress_pid=$!
-    
-    if ! git clone "$repo_url" panel >/dev/null 2>&1; then
-        kill $progress_pid 2>/dev/null || true
+    say_info "Cloning panel repository..."
+    if ! git clone "$repo_url" panel; then
         say_error "Couldn't get panel code"
         exit 1
     fi
-    
-    kill $progress_pid 2>/dev/null || true
     
     cd panel || { say_error "Can't enter panel folder"; exit 1; }
     
@@ -386,40 +381,25 @@ install_panel() {
     fi
     
     # Get dependencies
-    show_progress 30 "Installing panel stuff..." &
-    progress_pid=$!
-    
-    if ! npm install --production >/dev/null 2>&1; then
-        kill $progress_pid 2>/dev/null || true
+    say_info "Installing panel dependencies..."
+    if ! npm install --production; then
         say_error "Panel dependencies failed"
         exit 1
     fi
     
-    kill $progress_pid 2>/dev/null || true
-    
     # Set up database
-    show_progress 15 "Setting up database..." &
-    progress_pid=$!
-    
-    if ! npm run migrate:dev >/dev/null 2>&1; then
-        kill $progress_pid 2>/dev/null || true
+    say_info "Running database migrations..."
+    if ! npm run migrate:dev; then
         say_error "Database setup failed"
         exit 1
     fi
     
-    kill $progress_pid 2>/dev/null || true
-    
     # Build it
-    show_progress 25 "Building panel..." &
-    progress_pid=$!
-    
-    if ! npm run build-ts >/dev/null 2>&1; then
-        kill $progress_pid 2>/dev/null || true
+    say_info "Building panel..."
+    if ! npm run build-ts; then
         say_error "Panel build failed"
         exit 1
     fi
-    
-    kill $progress_pid 2>/dev/null || true
     
     # Make it a service
     create_panel_service
@@ -462,16 +442,11 @@ install_daemon() {
     fi
     
     # Get the code
-    show_progress 20 "Getting daemon code..." &
-    progress_pid=$!
-    
-    if ! git clone "$repo_url" daemon >/dev/null 2>&1; then
-        kill $progress_pid 2>/dev/null || true
+    say_info "Cloning daemon repository..."
+    if ! git clone "$repo_url" daemon; then
         say_error "Couldn't get daemon code"
         exit 1
     fi
-    
-    kill $progress_pid 2>/dev/null || true
     
     cd daemon || { say_error "Can't enter daemon folder"; exit 1; }
     
@@ -488,28 +463,18 @@ install_daemon() {
     fi
     
     # Get dependencies
-    show_progress 30 "Installing daemon stuff..." &
-    progress_pid=$!
-    
-    if ! npm install >/dev/null 2>&1; then
-        kill $progress_pid 2>/dev/null || true
+    say_info "Installing daemon dependencies..."
+    if ! npm install; then
         say_error "Daemon dependencies failed"
         exit 1
     fi
     
-    kill $progress_pid 2>/dev/null || true
-    
     # Build it
-    show_progress 20 "Building daemon..." &
-    progress_pid=$!
-    
-    if ! npm run build >/dev/null 2>&1; then
-        kill $progress_pid 2>/dev/null || true
+    say_info "Building daemon..."
+    if ! npm run build; then
         say_error "Daemon build failed"
         exit 1
     fi
-    
-    kill $progress_pid 2>/dev/null || true
     
     # Make it a service
     create_daemon_service
