@@ -1,6 +1,7 @@
 # AIRLINK INSTALLER
 
-![Airlink Installer](banner.png)
+
+<img width="1080" height="559" alt="image" src="https://github.com/user-attachments/assets/ce1bd065-95ef-49b2-9a74-386bed809342" />
 
 [![Maintained](https://img.shields.io/badge/Maintained-yes-green.svg)](https://github.com/g-flame-oss/Airlink-installer)
 [![Debian Compatible](https://img.shields.io/badge/Debian-Compatible-blue)](https://github.com/g-flame-oss/Airlink-installer)
