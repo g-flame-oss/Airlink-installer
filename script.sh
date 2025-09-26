@@ -400,6 +400,12 @@ install_panel() {
         say_error "Panel build failed"
         exit 1
     fi
+    # import images..
+    say_info "Downloading docker images..."
+    if ! npm run seed; then
+        say_error "image download failed."
+        exit 1
+    fi
     
     # Make it a service
     create_panel_service
